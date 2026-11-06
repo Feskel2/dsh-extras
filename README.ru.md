@@ -14,6 +14,16 @@
 установки перезапустите `dsh web` (bundle-слои монтируются при старте) и
 откройте напечатанный URL.
 
+### Установка из tarball релиза
+
+Пока пакетов нет в npm, можно скачать `.tgz` из
+[последнего релиза](https://github.com/Feskel2/dsh-extras/releases/latest) и
+поставить его по пути:
+
+```sh
+dsh plugin --profile web add ./dsh-topmost-notify.tgz
+```
+
 ## Требования
 
 - DSH `>=0.2.2-rc.1 <0.3.0-0`, профиль `web`;

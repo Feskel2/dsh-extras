@@ -13,6 +13,16 @@ Each plugin is an independent npm package that installs as a DSH bundle. After
 installing, restart `dsh web` (bundles are mounted at boot) and open the URL it
 prints.
 
+### Install from a release tarball
+
+Until the packages are on npm, grab a `.tgz` from the
+[latest release](https://github.com/Feskel2/dsh-extras/releases/latest) and
+install it by path:
+
+```sh
+dsh plugin --profile web add ./dsh-topmost-notify.tgz
+```
+
 ## Requirements
 
 - DSH `>=0.2.2-rc.1 <0.3.0-0`, profile `web`;
