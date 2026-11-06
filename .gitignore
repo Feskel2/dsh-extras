@@ -1,0 +1,29 @@
+# Internal planning and research — not part of the published repository
+publishing/
+research/
+session-rename/
+
+# Secrets and local configuration
+plugin-config.json
+.env
+.env.*
+!.env.example
+
+# Internal development notes that reference local environment paths
+SPEC.md
+CONTRACT.md
+
+# Local state, logs, diagnostics and test output
+.state/
+artifacts/
+*.log
+notify-debug.log
+probe-out.txt
+node_modules/
+*.tgz
+*.bak
+*.bak-*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

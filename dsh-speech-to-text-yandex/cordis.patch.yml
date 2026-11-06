@@ -1,0 +1,7 @@
+- id: speech-to-text
+  config:
+    defaultProvider: yandex-speechkit
+    language: ru
+- insert:
+    - id: speech-to-text-yandex
+      name: dsh-speech-to-text-yandex

@@ -1,0 +1,70 @@
+{
+  "name": "dsh-topmost-notify",
+  "version": "1.0.0",
+  "description": "Native always-on-top task-finished and answer-needed notifications with a chime for DSH Web on Windows",
+  "type": "module",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./client": "./client.js",
+    "./icon": "./icon.svg"
+  },
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0",
+    "node": ">=24.9.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.19.0"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "notifications",
+    "windows",
+    "wpf",
+    "always-on-top",
+    "toast"
+  ],
+  "license": "MIT",
+  "author": "Feskel2",
+  "homepage": "https://github.com/Feskel2/dsh-extras#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Feskel2/dsh-extras.git",
+    "directory": "dsh-topmost-notify"
+  },
+  "files": [
+    "index.mjs",
+    "client.js",
+    "cordis.patch.yml",
+    "host/notify.ps1",
+    "host/chime.wav",
+    "host/chime-question.wav",
+    "README.md",
+    "README.ru.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "icon.svg",
+    "screenshots.json",
+    "assets/*.png"
+  ],
+  "scripts": {
+    "test": "node test/index-smoke.mjs && node test/client-smoke.mjs"
+  }
+}

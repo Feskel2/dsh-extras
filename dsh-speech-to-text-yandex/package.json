@@ -1,0 +1,51 @@
+{
+  "name": "dsh-speech-to-text-yandex",
+  "version": "0.1.0",
+  "description": "Yandex SpeechKit cloud speech-to-text provider for DSH Web Voice input: REST v1 synchronous recognition, long-recording splitting and text stitching",
+  "type": "module",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./icon": "./icon.svg"
+  },
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "index.mjs",
+    "cordis.patch.yml",
+    "README.md",
+    "README.ru.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "icon.svg",
+    "screenshots.json",
+    "assets/*.png",
+    "plugin-config.example.json"
+  ],
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0",
+    "node": ">=24.9.0"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "stt",
+    "asr",
+    "voice",
+    "yandex",
+    "speechkit"
+  ],
+  "license": "MIT",
+  "author": "Feskel2",
+  "homepage": "https://github.com/Feskel2/dsh-extras#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Feskel2/dsh-extras.git",
+    "directory": "dsh-speech-to-text-yandex"
+  }
+}

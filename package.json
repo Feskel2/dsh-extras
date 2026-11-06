@@ -1,0 +1,26 @@
+{
+  "name": "dsh-extras",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plugins for DeepSeek Harness (DSH): always-on-top completion notifications, voice replies and Yandex SpeechKit speech recognition",
+  "type": "module",
+  "license": "MIT",
+  "author": "Feskel2",
+  "homepage": "https://github.com/Feskel2/dsh-extras#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Feskel2/dsh-extras.git"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "plugins",
+    "notifications",
+    "tts",
+    "speech-to-text"
+  ],
+  "scripts": {
+    "pack:all": "npm pack ./dsh-topmost-notify && npm pack ./dsh-voice-reply && npm pack ./dsh-speech-to-text-yandex"
+  }
+}

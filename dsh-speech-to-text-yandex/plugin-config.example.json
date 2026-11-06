@@ -1,0 +1,15 @@
+{
+  "apiKey": "",
+  "folderId": "",
+  "iamToken": "",
+  "endpoint": "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize",
+  "topic": "general",
+  "profanityFilter": false,
+  "rawResults": false,
+  "chunkSeconds": 25,
+  "searchBackSeconds": 3,
+  "requestTimeoutMs": 45000,
+  "maxAttempts": 3,
+  "debug": false,
+  "logFile": ".state/events.log"
+}
