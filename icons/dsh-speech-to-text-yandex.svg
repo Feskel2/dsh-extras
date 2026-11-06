@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Microphone with sound waves">
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+  <g fill="none" stroke="#38bdf8" stroke-linecap="round">
+    <path d="M13.5 26.5a9 9 0 0 0 0 11" stroke-width="2.5" opacity=".85"/>
+    <path d="M8.5 22.5a15 15 0 0 0 0 19" stroke-width="2.5" opacity=".45"/>
+    <path d="M50.5 26.5a9 9 0 0 1 0 11" stroke-width="2.5" opacity=".85"/>
+    <path d="M55.5 22.5a15 15 0 0 1 0 19" stroke-width="2.5" opacity=".45"/>
+  </g>
+  <rect x="26" y="11" width="12" height="25" rx="6" fill="#38bdf8"/>
+  <path d="M19.5 30v2.5a12.5 12.5 0 0 0 25 0V30" fill="none" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round"/>
+  <path d="M32 45v7M25.5 52h13" fill="none" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round"/>
+</svg>
