@@ -5,13 +5,14 @@
 распознаёт речь через Yandex вместо локальной модели SenseVoice. Для тех, у кого
 уже есть аккаунт Yandex Cloud.
 
-**Установка одной командой:**
-`dsh plugin --profile web add dsh-speech-to-text-yandex`
+**Установка (профиль `web`):**
+`dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-speech-to-text-yandex.tgz"` · [Инструкция по установке](../docs/install.ru.md)
 
 | | |
 |---|---|
 | **Платформа** | DSH Web, профиль `web`; плагин host-стороны, микрофонный интерфейс — штатный Voice input |
 | **DSH** | `>=0.2.2-rc.1 <0.3.0-0` |
+| **Установка** | Tarball GitHub-релиза (см. [инструкцию](../docs/install.ru.md)) |
 | **Лицензия** | MIT |
 
 ![Настройки Voice input: выбрана служба распознавания Yandex SpeechKit, провайдер готов](assets/voice-input-provider.png)
@@ -41,6 +42,7 @@
 ## Требования
 
 - DSH `>=0.2.2-rc.1 <0.3.0-0` и Node.js `>=24.9.0`, профиль `web`.
+- pnpm в `PATH` (`dsh plugin` передаёт операции с пакетами в pnpm).
 - Включённый экспериментальный bundle **Voice input** (Плагины → Голосовой ввод).
   Пакет регистрирует только службу распознавания; микрофонный интерфейс — часть
   этого bundle.
@@ -51,13 +53,18 @@
 
 ## Установка
 
-```sh
-dsh plugin --profile web add dsh-speech-to-text-yandex
+Установите tarball из GitHub-релиза — npm-пакета нет, аккаунт npm не нужен:
+
+```powershell
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-speech-to-text-yandex.tgz"
 ```
 
 Затем перезапустите `dsh web` (host-плагины загружаются при старте) и откройте
 напечатанный адрес. Провайдер вставляется и выбирается автоматически; проверить
 можно в Плагинах → Голосовой ввод.
+
+Пошаговая инструкция, обновление, удаление и разбор ошибок:
+**[Инструкция по установке](../docs/install.ru.md)**.
 
 ## Настройка
 

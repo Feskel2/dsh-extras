@@ -2,13 +2,13 @@
 
 Reads the assistant's finished answers aloud in DSH Web with Yandex SpeechKit TTS — and puts a 🔊 replay button on every answer.
 
-**Install (profile `web`):** `dsh plugin --profile web add dsh-voice-reply`
+**Install (profile `web`):** `dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-voice-reply.tgz"` · [Install guide](../docs/install.md)
 
 | | |
 |---|---|
 | **Platform** | DSH Web (`web` profile); tested on Windows 11 |
 | **DSH** | `>=0.2.2-rc.1 <0.3.0-0` |
-| **Install** | `dsh plugin --profile web add dsh-voice-reply` |
+| **Install** | GitHub release tarball (see [Install guide](../docs/install.md)) |
 | **License** | MIT |
 
 ![An answer with the speaker action and the reading chip](assets/answer-playing.png)
@@ -29,15 +29,21 @@ The agent works for a while and then answers with a wall of text. You want to he
 
 ## Install
 
-```sh
-dsh plugin --profile web add dsh-voice-reply
+Install from the GitHub release tarball — there is no npm package and no npm
+account is needed:
+
+```powershell
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-voice-reply.tgz"
 ```
 
 Then restart `dsh web` — profile UI plugins are loaded at boot — and open the URL it prints. The bundle row is added by `cordis.patch.yml`, so no manual profile edit is needed.
 
+Updating replaces the package directory, including `plugin-config.json` with your Yandex key and settings. Copy that file out before `remove` and put it back after `add`; see the [Install guide](../docs/install.md#7-update-a-plugin).
+
 ### Requirements
 
 - DSH `>=0.2.2-rc.1` with the `web` profile, Node.js `>=24.9.0` (the DSH requirement);
+- pnpm on `PATH` (`dsh plugin` forwards package operations to pnpm);
 - a **Yandex Cloud** account with a service account that has the role **`ai.speechkit-tts.user`** on the folder and an **API key scoped `yc.ai.speechkitTts.execute`** (or an IAM token plus folder id);
 - outbound HTTPS to `tts.api.cloud.yandex.net`;
 - a browser that can play audio (the first automatic playback may require one page interaction because of the autoplay policy).
@@ -83,7 +89,8 @@ The key is **never** stored in the repository. Two local sources are supported, 
 
 Or put the same fields in a local `plugin-config.json` next to the plugin (copy `plugin-config.example.json`). The host **re-reads that file on every request**, so replacing the key does not need a `dsh web` restart; environment variables are read by the running process and therefore need a restart to change.
 
-To create the key in [Yandex Cloud](https://console.yandex.cloud):
+To create the key in [Yandex Cloud](https://console.yandex.cloud) (full walkthrough:
+[Yandex SpeechKit setup](../docs/yandex-speechkit-setup.md)):
 
 1. Give the service account the role **`ai.speechkit-tts.user`** on the folder.
 2. Create an **API key** for that account with the scope **`yc.ai.speechkitTts.execute`** (or leave the scope empty so the key inherits the account's rights).

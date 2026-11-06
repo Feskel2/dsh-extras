@@ -5,28 +5,48 @@ A small collection of plugins for [DeepSeek Harness](https://github.com/deepseek
 
 | Plugin | What it does | Platform | Install |
 |---|---|---|---|
-| [`dsh-topmost-notify`](dsh-topmost-notify) | Native always-on-top window + chime when the agent finishes a task or needs an answer; per-kind display time and MP3/WAV sound, its own settings page, never steals focus | Windows 10/11 | repo `install.ps1` (npm release pending) |
-| [`dsh-voice-reply`](dsh-voice-reply) | Reads a short spoken summary of every finished answer with Yandex SpeechKit TTS; replay button and its own settings page | DSH Web | `dsh plugin --profile web add dsh-voice-reply` |
-| [`dsh-speech-to-text-yandex`](dsh-speech-to-text-yandex) | Cloud speech-to-text provider (`yandex-speechkit`) for the built-in Voice input | DSH Web | `dsh plugin --profile web add dsh-speech-to-text-yandex` |
+| [`dsh-topmost-notify`](dsh-topmost-notify) | Native always-on-top window + chime when the agent finishes a task or needs an answer; per-kind display time and MP3/WAV sound, its own settings page, never steals focus | Windows 10/11 | GitHub tarball — [install guide](docs/install.md) |
+| [`dsh-voice-reply`](dsh-voice-reply) | Reads a short spoken summary of every finished answer with Yandex SpeechKit TTS; replay button and its own settings page | DSH Web | GitHub tarball — [install guide](docs/install.md) |
+| [`dsh-speech-to-text-yandex`](dsh-speech-to-text-yandex) | Cloud speech-to-text provider (`yandex-speechkit`) for the built-in Voice input | DSH Web | GitHub tarball — [install guide](docs/install.md) |
 
-Each plugin is an independent npm package that installs as a DSH bundle. After
-installing, restart `dsh web` (bundles are mounted at boot) and open the URL it
-prints.
+Each plugin is an independent package that installs as a DSH bundle from a
+GitHub release tarball. After installing, restart `dsh web` (bundles are mounted
+at boot) and open the URL it prints.
 
-### Install from a release tarball
+## Install (GitHub, no npm)
 
-Until the packages are on npm, grab a `.tgz` from the
-[latest release](https://github.com/Feskel2/dsh-extras/releases/latest) and
-install it by path:
+There is no npm package and no npm account is needed. Install any plugin
+straight from the v1.1.0 release — one command per plugin:
 
-```sh
-dsh plugin --profile web add ./dsh-topmost-notify.tgz
+```powershell
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-topmost-notify.tgz"
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-voice-reply.tgz"
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-speech-to-text-yandex.tgz"
 ```
+
+Use the explicit version tag, not `latest`: pnpm can fail with
+`ERR_PNPM_MISSING_TARBALL_INTEGRITY` on the redirect. If a later install in the
+same profile fails with that error (a pnpm cache issue, not a bad tarball), use
+the downloaded-file route in the
+[Install guide](docs/install.md#6-install-several-plugins). You can also
+download a `.tgz` and install it by path:
+
+```powershell
+dsh plugin --profile web add ".\dsh-topmost-notify.tgz"
+```
+
+Step-by-step instructions, updates, removal, offline install and
+troubleshooting: **[Install guide](docs/install.md)** ·
+**[Инструкция по установке](docs/install.ru.md)**.
+
+npm publication is not planned for the near future. If the packages ever
+appear on npm, the only change will be a shorter command without the URL.
 
 ## Requirements
 
 - DSH `>=0.2.2-rc.1 <0.3.0-0`, profile `web`;
 - Node.js `>=24.9.0` (the DSH runtime requirement);
+- pnpm on `PATH` (`dsh plugin` forwards package operations to pnpm);
 - per plugin: Windows 10/11 + PowerShell 5.1 (`dsh-topmost-notify`), a Yandex
   Cloud account with SpeechKit enabled (`dsh-voice-reply`,
   `dsh-speech-to-text-yandex`).

@@ -2,13 +2,14 @@
 
 Озвучивает готовые ответы ассистента в DSH Web голосом Yandex SpeechKit и добавляет к каждому ответу кнопку 🔊 для повторного прослушивания.
 
-**Установка одной командой:**
-`dsh plugin --profile web add dsh-voice-reply`
+**Установка (профиль `web`):**
+`dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-voice-reply.tgz"` · [Инструкция по установке](../docs/install.ru.md)
 
 | | |
 |---|---|
 | **Платформа** | DSH Web, профиль `web` (проверено на Windows 11) |
 | **DSH** | `>=0.2.2-rc.1 <0.3.0-0` |
+| **Установка** | Tarball GitHub-релиза (см. [инструкцию](../docs/install.ru.md)) |
 | **Лицензия** | MIT |
 
 ![Ответ с кнопкой озвучки и чипом «читаю краткое содержание»](assets/answer-playing.png)
@@ -29,15 +30,24 @@
 
 ## Установка
 
-```sh
-dsh plugin --profile web add dsh-voice-reply
+Установите tarball из GitHub-релиза — npm-пакета нет, аккаунт npm не нужен:
+
+```powershell
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-voice-reply.tgz"
 ```
 
-Затем перезапустите `dsh web` (UI-плагины профиля загружаются при старте) и откройте адрес, который он напечатает. Строка плагина добавляется через `cordis.patch.yml` — править профиль вручную не нужно.
+Затем перезапустите `dsh web` (UI-плагины профиля загружаются при старте) и
+откройте адрес, который он напечатает. Строка плагина добавляется через
+`cordis.patch.yml` — править профиль вручную не нужно.
+
+Обновление заменяет каталог пакета, включая `plugin-config.json` с ключом
+Яндекса и настройками. Скопируйте этот файл перед `remove` и верните после
+`add`; см. [инструкцию по установке](../docs/install.ru.md#7-обновление-плагина).
 
 ## Требования
 
 - DSH `>=0.2.2-rc.1`, профиль `web`, Node.js `>=24.9.0` (требование самого DSH);
+- pnpm в `PATH` (`dsh plugin` передаёт операции с пакетами в pnpm);
 - аккаунт **Yandex Cloud**: сервисному аккаунту нужна роль **`ai.speechkit-tts.user`** на каталог и **API-ключ со скоупом `yc.ai.speechkitTts.execute`** (либо IAM-токен и id каталога);
 - исходящий HTTPS к `tts.api.cloud.yandex.net`;
 - браузер, который умеет проигрывать звук (первый автозапуск может потребовать одного действия на странице из-за политики autoplay).
@@ -83,7 +93,8 @@ dsh plugin --profile web add dsh-voice-reply
 
 Либо те же поля в локальном `plugin-config.json` рядом с плагином (скопируйте `plugin-config.example.json`). Хост **перечитывает этот файл на каждый запрос**, поэтому замена ключа не требует перезапуска `dsh web`; переменные окружения читаются запущенным процессом и меняются только с перезапуском.
 
-Как получить ключ в [консоли Yandex Cloud](https://console.yandex.cloud):
+Как получить ключ в [консоли Yandex Cloud](https://console.yandex.cloud) (полный разбор:
+[«Настройка Yandex SpeechKit»](../docs/yandex-speechkit-setup.ru.md)):
 
 1. Выдайте сервисному аккаунту роль **`ai.speechkit-tts.user`** на каталог.
 2. Создайте для него **API-ключ** со скоупом **`yc.ai.speechkitTts.execute`** (или оставьте скоуп пустым — тогда ключ наследует права аккаунта).

@@ -51,7 +51,7 @@
 | Область действия API-ключа | `yc.ai.speechkitTts.execute` | `yc.ai.speechkitStt.execute` |
 | Endpoint | `https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize` | `https://stt.api.cloud.yandex.net/speech/v1/stt:recognize` |
 | Источники доступа | переменные окружения, затем `plugin-config.json` | config в `cordis.patch.yml`, затем переменные окружения, затем `plugin-config.json`, затем значения по умолчанию |
-| Установка | `dsh plugin --profile web add dsh-voice-reply` | `dsh plugin --profile web add dsh-speech-to-text-yandex` |
+| Установка | Tarball GitHub-релиза — см. [инструкцию](install.ru.md) | Tarball GitHub-релиза — см. [инструкцию](install.ru.md) |
 
 Что у них общего:
 
@@ -249,10 +249,10 @@ yc iam create-token
 - [ ] в правах каталога есть `ai.speechkit-tts.user` и/или `ai.speechkit-stt.user`;
 - [ ] создан один API-ключ на плагин, у каждого — своя область действия;
 - [ ] секреты сохранены в надёжном месте и их нет в репозитории;
-- [ ] плагин(ы) установлены:
+- [ ] плагин(ы) установлены (см. [инструкцию по установке](install.ru.md)):
   ```powershell
-  dsh plugin --profile web add dsh-voice-reply
-  dsh plugin --profile web add dsh-speech-to-text-yandex
+  dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-voice-reply.tgz"
+  dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-speech-to-text-yandex.tgz"
   ```
 
 ## 3. Доставляем секрет плагину

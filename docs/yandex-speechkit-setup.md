@@ -51,7 +51,7 @@ Plus, on the DSH side:
 | API-key scope | `yc.ai.speechkitTts.execute` | `yc.ai.speechkitStt.execute` |
 | Endpoint | `https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize` | `https://stt.api.cloud.yandex.net/speech/v1/stt:recognize` |
 | Credential sources | environment, then `plugin-config.json` | `cordis.patch.yml` config, then environment, then `plugin-config.json`, then defaults |
-| Install | `dsh plugin --profile web add dsh-voice-reply` | `dsh plugin --profile web add dsh-speech-to-text-yandex` |
+| Install | GitHub tarball — see [Install guide](install.md) | GitHub tarball — see [Install guide](install.md) |
 
 What they share:
 
@@ -249,10 +249,10 @@ Official pages: [Get an IAM token for a Yandex account](https://yandex.cloud/en/
 - [ ] the folder access list contains `ai.speechkit-tts.user` and/or `ai.speechkit-stt.user`;
 - [ ] one API key per plugin, each with the matching scope;
 - [ ] the secrets are stored somewhere safe and are not in the repository;
-- [ ] the plugin(s) are installed:
+- [ ] the plugin(s) are installed (see the [Install guide](install.md)):
   ```powershell
-  dsh plugin --profile web add dsh-voice-reply
-  dsh plugin --profile web add dsh-speech-to-text-yandex
+  dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-voice-reply.tgz"
+  dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-speech-to-text-yandex.tgz"
   ```
 
 ## 3. Deliver the secret to the plugin

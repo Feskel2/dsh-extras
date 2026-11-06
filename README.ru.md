@@ -6,28 +6,48 @@
 
 | Плагин | Что делает | Платформа | Установка |
 |---|---|---|---|
-| [`dsh-topmost-notify`](dsh-topmost-notify) | Нативное окно «поверх всех» + звук, когда агент завершил задачу или нужен ответ; своя длительность и свой MP3/WAV-звук для каждого вида, отдельная страница настроек; фокус не крадёт | Windows 10/11 | `install.ps1` из репозитория (npm-пакет пока не опубликован) |
-| [`dsh-voice-reply`](dsh-voice-reply) | Озвучивает краткое содержание каждого финального ответа через Yandex SpeechKit TTS, кнопка 🔊 и своя страница настроек | DSH Web | `dsh plugin --profile web add dsh-voice-reply` |
-| [`dsh-speech-to-text-yandex`](dsh-speech-to-text-yandex) | Облачный провайдер распознавания речи (`yandex-speechkit`) для штатного Voice input | DSH Web | `dsh plugin --profile web add dsh-speech-to-text-yandex` |
+| [`dsh-topmost-notify`](dsh-topmost-notify) | Нативное окно «поверх всех» + звук, когда агент завершил задачу или нужен ответ; своя длительность и свой MP3/WAV-звук для каждого вида, отдельная страница настроек; фокус не крадёт | Windows 10/11 | Tarball с GitHub — [инструкция](docs/install.ru.md) |
+| [`dsh-voice-reply`](dsh-voice-reply) | Озвучивает краткое содержание каждого финального ответа через Yandex SpeechKit TTS, кнопка 🔊 и своя страница настроек | DSH Web | Tarball с GitHub — [инструкция](docs/install.ru.md) |
+| [`dsh-speech-to-text-yandex`](dsh-speech-to-text-yandex) | Облачный провайдер распознавания речи (`yandex-speechkit`) для штатного Voice input | DSH Web | Tarball с GitHub — [инструкция](docs/install.ru.md) |
 
-Каждый плагин — самостоятельный npm-пакет, который ставится как bundle. После
-установки перезапустите `dsh web` (bundle-слои монтируются при старте) и
-откройте напечатанный URL.
+Каждый плагин — самостоятельный пакет, который ставится как bundle DSH из
+tarball'а GitHub-релиза. После установки перезапустите `dsh web` (bundle-слои
+монтируются при старте) и откройте напечатанный URL.
 
-### Установка из tarball релиза
+## Установка с GitHub (без npm)
 
-Пока пакетов нет в npm, можно скачать `.tgz` из
-[последнего релиза](https://github.com/Feskel2/dsh-extras/releases/latest) и
-поставить его по пути:
+npm-пакета нет, аккаунт npm не нужен. Ставьте плагин прямо из релиза v1.1.0 —
+по одной команде на плагин:
 
-```sh
-dsh plugin --profile web add ./dsh-topmost-notify.tgz
+```powershell
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-topmost-notify.tgz"
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-voice-reply.tgz"
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-speech-to-text-yandex.tgz"
 ```
+
+Указывайте явный тег версии, а не `latest`: pnpm может упасть с
+`ERR_PNPM_MISSING_TARBALL_INTEGRITY` на редиректе. Если более поздняя установка
+в тот же профиль падает с этой ошибкой (проблема кэша pnpm, а не tarball'а),
+используйте локальные файлы, как описано в
+[инструкции](docs/install.ru.md#6-установка-нескольких-плагинов). Можно также
+скачать `.tgz` и поставить его по пути:
+
+```powershell
+dsh plugin --profile web add ".\dsh-topmost-notify.tgz"
+```
+
+Пошаговая инструкция, обновление, удаление, офлайн-установка и разбор ошибок:
+**[Инструкция по установке](docs/install.ru.md)** ·
+**[Install guide](docs/install.md)**.
+
+Публикация в npm в ближайшее время не планируется. Если пакеты когда-нибудь
+появятся в npm, единственным изменением будет короткая команда без URL.
 
 ## Требования
 
 - DSH `>=0.2.2-rc.1 <0.3.0-0`, профиль `web`;
 - Node.js `>=24.9.0` (требование рантайма DSH);
+- pnpm в `PATH` (`dsh plugin` передаёт операции с пакетами в pnpm);
 - по плагину: Windows 10/11 + PowerShell 5.1 (`dsh-topmost-notify`), аккаунт
   Yandex Cloud с включённым SpeechKit (`dsh-voice-reply`,
   `dsh-speech-to-text-yandex`).

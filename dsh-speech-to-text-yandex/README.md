@@ -9,7 +9,7 @@ account.
 |---|---|
 | **Platform** | DSH Web profile (`web`), host-side plugin — the microphone UI is the stock Voice input |
 | **DSH** | `>=0.2.2-rc.1 <0.3.0-0` |
-| **Install** | `dsh plugin --profile web add dsh-speech-to-text-yandex` |
+| **Install** | GitHub release tarball (see [Install guide](../docs/install.md)) |
 | **License** | MIT |
 
 ![Voice input settings: Yandex SpeechKit selected as the recognition service, the provider reports ready](assets/voice-input-provider.png)
@@ -38,17 +38,24 @@ as before — only the recognition backend changes.
 
 ## Install
 
-```sh
-dsh plugin --profile web add dsh-speech-to-text-yandex
+Install from the GitHub release tarball — there is no npm package and no npm
+account is needed:
+
+```powershell
+dsh plugin --profile web add "https://github.com/Feskel2/dsh-extras/releases/download/v1.1.0/dsh-speech-to-text-yandex.tgz"
 ```
 
 Then restart `dsh web` (host plugins are loaded at boot) and open the URL it prints.
 The provider is inserted and selected automatically; you can verify it in
 Plugins → Voice input.
 
+Step-by-step instructions, updates, removal and troubleshooting:
+**[Install guide](../docs/install.md)**.
+
 ### Requirements
 
 - DSH `>=0.2.2-rc.1 <0.3.0-0` and Node.js `>=24.9.0`, profile `web`.
+- pnpm on `PATH` (`dsh plugin` forwards package operations to pnpm).
 - The experimental **Voice input** bundle enabled (Plugins → Voice input). This package
   only registers a recognition service; the microphone UI belongs to that bundle.
 - Yandex Cloud: a service account with the role `ai.speechkit-stt.user` on the folder,
