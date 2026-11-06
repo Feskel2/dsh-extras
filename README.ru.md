@@ -36,7 +36,7 @@ dsh plugin --profile web add ./dsh-topmost-notify.tgz
 
 - В репозитории нет ключей, токенов и личных данных. Оба голосовых плагина
   берут доступы из переменных окружения (`YANDEX_TTS_API_KEY`,
-  `YANDEX_SPEECHKIT_API_KEY`, …) или из локального `plugin-config.json`,
+  `YANDEX_STT_API_KEY`, …) или из локального `plugin-config.json`,
   который в `.gitignore`; в пакетах поставляется только
   `plugin-config.example.json` с заглушками.
 - Телеметрии нет. Сеть используют только голосовые плагины и только к

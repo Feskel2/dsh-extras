@@ -35,7 +35,7 @@ dsh plugin --profile web add ./dsh-topmost-notify.tgz
 
 - No API keys, tokens or personal data are stored in this repository. Both
   voice plugins read credentials from environment variables
-  (`YANDEX_TTS_API_KEY`, `YANDEX_SPEECHKIT_API_KEY`, …) or from a local
+  (`YANDEX_TTS_API_KEY`, `YANDEX_STT_API_KEY`, …) or from a local
   `plugin-config.json` that is git-ignored; only
   `plugin-config.example.json` with placeholders ships in the packages.
 - None of the plugins sends telemetry. Network access is limited to Yandex
