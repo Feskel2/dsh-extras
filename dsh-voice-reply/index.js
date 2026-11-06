@@ -50,6 +50,25 @@ const MAX_BODY_BYTES = 1024 * 1024
 /** Route prefix owned by this plugin. */
 const ROUTE_PREFIX = '/dsh-voice-reply'
 
+/** Sample phrases spoken by the settings-page voice preview, by voice language. */
+const PREVIEW_TEXTS = Object.freeze({
+  ru: 'Привет! Так звучит выбранный голос. Проверьте, нравится ли вам скорость и интонация.',
+  en: 'Hello! This is how the selected voice sounds. Check the speed and intonation.',
+  de: 'Hallo! So klingt die ausgewählte Stimme. Prüfen Sie Sprechtempo und Intonation.',
+  kk: 'Сәлеметсіз бе! Бұл таңдалған дауыс. Сөйлеу жылдамдығын тексеріңіз.',
+  uz: 'Salom! Bu tanlangan ovoz. Nutq tezligini tekshiring.',
+})
+
+/**
+ * Pick the preview phrase for one voice language (`ru-RU` → `ru`).
+ * @param {string} lang - BCP-47-ish voice language.
+ * @returns {string} sample phrase.
+ */
+function previewTextFor(lang) {
+  const key = String(lang).toLowerCase().slice(0, 2)
+  return PREVIEW_TEXTS[key] ?? PREVIEW_TEXTS.ru
+}
+
 /** Cache directory: audio is reproducible from the key, so the OS temp dir fits. */
 const CACHE_DIR = path.join(os.tmpdir(), 'dsh-voice-reply-cache')
 
@@ -195,8 +214,13 @@ function resolveSettings(config) {
   const authMode = nonEmpty(iamTokenRaw) ? 'iam' : nonEmpty(apiKeyRaw) ? 'api-key' : 'none'
   const secret = authMode === 'iam' ? bareSecret(iamTokenRaw) : bareSecret(apiKeyRaw ?? '')
 
-  const voice = String(pick(configValue(config?.voice, ''), file.voice) ?? VOICES[0].id)
-  const known = VOICES.find((entry) => entry.id === voice)
+  // The plugin settings page writes voice and speed to plugin-config.json; the
+  // file value wins over the patch row so a choice applies without a profile
+  // edit. Unknown/empty values fall back to the patch/default voice.
+  const fileVoice = VOICES.find((entry) => entry.id === file.voice)
+  const configVoice = VOICES.find((entry) => entry.id === configValue(config?.voice, ''))
+  const known = fileVoice ?? configVoice ?? VOICES[0]
+  const voice = known.id
   const format = String(pick(configValue(config?.format, ''), file.format) ?? 'mp3')
   const endpoint = String(pick(env.YANDEX_TTS_ENDPOINT, file.endpoint) ?? DEFAULT_ENDPOINT)
 
@@ -211,6 +235,17 @@ function resolveSettings(config) {
       ? configValue(config?.summaryMaxChars, undefined)
       : file.summaryMaxChars,
   )
+  const speedSource = file.speed === undefined || file.speed === null ? configValue(config?.speed, undefined) : file.speed
+
+  // Intonation (`emotion` in the Yandex API) is voice-specific. The settings
+  // page writes the chosen emotion to plugin-config.json, so the file value
+  // wins over the patch row; a value the selected voice does not support (for
+  // example after switching to a voice without emotions) falls back to the
+  // voice default instead of failing the synthesis request.
+  const requestedEmotion = String(pick(file.emotion, configValue(config?.emotion, '')) ?? '').trim()
+  const supportedEmotions = Array.isArray(known.emotions) ? known.emotions : []
+  const emotion = supportedEmotions.includes(requestedEmotion) ? requestedEmotion : ''
+  const emotionOptions = supportedEmotions.slice()
 
   return {
     authMode,
@@ -218,9 +253,10 @@ function resolveSettings(config) {
     folderId: typeof folderId === 'string' ? folderId.trim() : '',
     endpoint,
     voice,
-    lang: known?.lang ?? String(pick(file.lang) ?? 'ru-RU'),
-    emotion: String(configValue(config?.emotion, '') ?? file.emotion ?? '').trim(),
-    speed: clampNumber(configValue(config?.speed, undefined), 0.1, 3, clampNumber(file.speed, 0.1, 3, 1)),
+    lang: known.lang,
+    emotion,
+    emotionOptions,
+    speed: clampNumber(speedSource, 0.1, 3, 1),
     format: FORMATS[format] === undefined ? 'mp3' : format,
     maxChars: Math.round(clampNumber(configValue(config?.maxChars, undefined), 100, 20000, 4000)),
     summaryMaxChars,
@@ -234,8 +270,8 @@ function resolveSettings(config) {
 /**
  * Persist UI-owned preferences into `plugin-config.json` (read-modify-write,
  * atomic rename). Credentials and the other fields are preserved verbatim.
- * @param {{ autoSpeak?: boolean, enabled?: boolean, summaryMaxChars?: number }} patch - changed preferences.
- * @returns {{ autoSpeak: boolean, enabled: boolean, summaryMaxChars: number }} stored preferences.
+ * @param {{ autoSpeak?: boolean, enabled?: boolean, summaryMaxChars?: number, voice?: string, emotion?: string, speed?: number }} patch - changed preferences.
+ * @returns {{ autoSpeak: boolean, enabled: boolean, summaryMaxChars: number, voice: string, emotion: string, speed: number }} stored preferences.
  * @throws {Error} when the file cannot be written.
  */
 function writePreferences(patch) {
@@ -244,6 +280,11 @@ function writePreferences(patch) {
   if (typeof patch.autoSpeak === 'boolean') next.autoSpeak = patch.autoSpeak
   if (typeof patch.enabled === 'boolean') next.enabled = patch.enabled
   if (patch.summaryMaxChars !== undefined) next.summaryMaxChars = clampSummaryMaxChars(patch.summaryMaxChars)
+  if (nonEmpty(patch.voice)) next.voice = String(patch.voice)
+  // An empty string is a real choice: it clears the intonation and lets the
+  // voice default apply.
+  if (typeof patch.emotion === 'string') next.emotion = patch.emotion
+  if (patch.speed !== undefined) next.speed = clampNumber(patch.speed, 0.1, 3, 1)
   const target = path.join(HERE, 'plugin-config.json')
   const temporary = path.join(HERE, `.plugin-config.json.${process.pid}.tmp`)
   fs.writeFileSync(temporary, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
@@ -252,6 +293,9 @@ function writePreferences(patch) {
     autoSpeak: typeof next.autoSpeak === 'boolean' ? next.autoSpeak : true,
     enabled: typeof next.enabled === 'boolean' ? next.enabled : true,
     summaryMaxChars: clampSummaryMaxChars(next.summaryMaxChars),
+    voice: nonEmpty(next.voice) ? String(next.voice) : VOICES[0].id,
+    emotion: typeof next.emotion === 'string' ? next.emotion : '',
+    speed: clampNumber(next.speed, 0.1, 3, 1),
   }
 }
 
@@ -578,6 +622,8 @@ function handleStatus(res, config) {
     authMode: settings.authMode,
     voice: settings.voice,
     lang: settings.lang,
+    emotion: settings.emotion,
+    emotionOptions: settings.emotionOptions,
     speed: settings.speed,
     format: settings.format,
     mime: mimeForFormat(settings.format),
@@ -597,9 +643,17 @@ function handleStatus(res, config) {
  * Handle POST /dsh-voice-reply/preferences: persist the UI-owned preferences.
  * @param {import('node:http').IncomingMessage} req - request.
  * @param {import('node:http').ServerResponse} res - response.
+ * @param {unknown} config - plugin Config.
  * @returns {Promise<void>} completion after the response is sent.
  */
-async function handlePreferences(req, res) {
+async function handlePreferences(req, res, config) {
+  let current
+  try {
+    current = resolveSettings(config)
+  } catch (error) {
+    sendError(res, 500, { code: 'not-configured', message: error instanceof Error ? error.message : String(error) })
+    return
+  }
   let body
   try {
     body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8'))
@@ -608,7 +662,10 @@ async function handlePreferences(req, res) {
       sendError(res, 413, { code: error.code, message: error.message })
       return
     }
-    sendError(res, 400, { code: 'bad-request', message: 'Ожидался JSON { autoSpeak?: boolean, enabled?: boolean, summaryMaxChars?: number }' })
+    sendError(res, 400, {
+      code: 'bad-request',
+      message: 'Ожидался JSON { autoSpeak?: boolean, enabled?: boolean, summaryMaxChars?: number, voice?: string, emotion?: string, speed?: number }',
+    })
     return
   }
   const patch = {}
@@ -626,17 +683,185 @@ async function handlePreferences(req, res) {
       }
       patch.summaryMaxChars = Math.round(value)
     }
+    if (body.voice !== undefined && body.voice !== null && body.voice !== '') {
+      const voice = String(body.voice)
+      if (!VOICES.some((entry) => entry.id === voice)) {
+        sendError(res, 400, { code: 'bad-request', message: `Неизвестный голос озвучки: ${voice.slice(0, 60)}` })
+        return
+      }
+      patch.voice = voice
+    }
+    // The intonation is validated against the voice that will be in effect
+    // *after* this write: the settings page sends the new voice and intonation
+    // in one save, so the check must not use the previously accepted voice.
+    if (body.emotion !== undefined && body.emotion !== null) {
+      if (typeof body.emotion !== 'string') {
+        sendError(res, 400, { code: 'bad-request', message: 'Интонация озвучки должна быть строкой' })
+        return
+      }
+      const emotion = body.emotion.trim()
+      const voiceEntry = VOICES.find((entry) => entry.id === (patch.voice ?? current.voice)) ?? VOICES[0]
+      const allowed = Array.isArray(voiceEntry.emotions) ? voiceEntry.emotions : []
+      if (emotion !== '' && !allowed.includes(emotion)) {
+        sendError(res, 400, {
+          code: 'bad-request',
+          message: `Интонация «${emotion.slice(0, 40)}» недоступна для голоса ${voiceEntry.id}`,
+          hint:
+            allowed.length > 0
+              ? `Доступные интонации: ${allowed.join(', ')}. Передайте пустую строку, чтобы вернуть интонацию по умолчанию.`
+              : 'У этого голоса нет вариантов интонации. Передайте пустую строку, чтобы не задавать её.',
+        })
+        return
+      }
+      patch.emotion = emotion
+    }
+    if (body.speed !== undefined && body.speed !== null && body.speed !== '') {
+      const speed = typeof body.speed === 'number' ? body.speed : Number(body.speed)
+      if (!Number.isFinite(speed) || speed < 0.1 || speed > 3) {
+        sendError(res, 400, { code: 'bad-request', message: 'Скорость речи должна быть числом от 0.1 до 3.0' })
+        return
+      }
+      patch.speed = Math.round(speed * 100) / 100
+    }
   }
   if (Object.keys(patch).length === 0) {
-    sendError(res, 400, { code: 'bad-request', message: 'Нужно передать autoSpeak, enabled или summaryMaxChars' })
+    sendError(res, 400, {
+      code: 'bad-request',
+      message: 'Нужно передать autoSpeak, enabled, summaryMaxChars, voice, emotion или speed',
+    })
     return
   }
   try {
     const stored = writePreferences(patch)
+    const resolved = resolveSettings(config)
     appendEvent('preferences.ok', stored)
-    sendJson(res, 200, { ok: true, ...stored })
+    sendJson(res, 200, {
+      ok: true,
+      autoSpeak: resolved.autoSpeak,
+      enabled: resolved.enabled,
+      summaryMaxChars: resolved.summaryMaxChars,
+      voice: resolved.voice,
+      lang: resolved.lang,
+      emotion: resolved.emotion,
+      speed: resolved.speed,
+      format: resolved.format,
+    })
   } catch (error) {
     sendEngineError(res, error, 'preferences')
+  }
+}
+
+/**
+ * Handle POST /dsh-voice-reply/preview: synthesize a short sample of the
+ * drafts currently chosen on the plugin settings page, without saving them.
+ * #body `{ voice?: string, emotion?: string, speed?: number }`
+ * @param {import('node:http').IncomingMessage} req - request.
+ * @param {import('node:http').ServerResponse} res - response.
+ * @param {unknown} config - plugin Config.
+ * @returns {Promise<void>} completion after the response is sent.
+ */
+async function handlePreview(req, res, config) {
+  const startedAt = Date.now()
+  let settings
+  try {
+    settings = resolveSettings(config)
+  } catch (error) {
+    sendError(res, 500, { code: 'not-configured', message: error instanceof Error ? error.message : String(error) })
+    return
+  }
+  if (!settings.configured) {
+    sendError(res, 503, {
+      code: 'not-configured',
+      message: 'Yandex SpeechKit TTS не настроен',
+      hint: 'Добавьте API-ключ со скоупом yc.ai.speechkitTts.execute в plugin-config.json плагина voice-reply',
+    })
+    return
+  }
+
+  let body
+  try {
+    body = JSON.parse((await readBody(req, 64 * 1024)).toString('utf8'))
+  } catch (error) {
+    if (error instanceof TtsError) {
+      sendError(res, 413, { code: error.code, message: error.message })
+      return
+    }
+    sendError(res, 400, { code: 'bad-request', message: 'Ожидался JSON { voice?: string, emotion?: string, speed?: number }' })
+    return
+  }
+
+  const requestedVoice = body !== null && typeof body === 'object' && nonEmpty(body.voice) ? String(body.voice) : settings.voice
+  const voiceEntry = VOICES.find((entry) => entry.id === requestedVoice)
+  if (voiceEntry === undefined) {
+    sendError(res, 400, { code: 'bad-request', message: 'Неизвестный голос озвучки' })
+    return
+  }
+  // Same rule as the persisted preference: an unsupported intonation is a
+  // client-side mismatch, not a reason to synthesize.
+  let emotion = ''
+  if (body !== null && typeof body === 'object' && body.emotion !== undefined && body.emotion !== null && body.emotion !== '') {
+    if (typeof body.emotion !== 'string') {
+      sendError(res, 400, { code: 'bad-request', message: 'Интонация озвучки должна быть строкой' })
+      return
+    }
+    const candidate = body.emotion.trim()
+    const allowed = Array.isArray(voiceEntry.emotions) ? voiceEntry.emotions : []
+    if (candidate !== '' && !allowed.includes(candidate)) {
+      sendError(res, 400, {
+        code: 'bad-request',
+        message: `Интонация «${candidate.slice(0, 40)}» недоступна для голоса ${voiceEntry.id}`,
+        hint:
+          allowed.length > 0
+            ? `Доступные интонации: ${allowed.join(', ')}.`
+            : 'У этого голоса нет вариантов интонации.',
+      })
+      return
+    }
+    emotion = candidate
+  }
+  let speed = settings.speed
+  if (body !== null && typeof body === 'object' && body.speed !== undefined && body.speed !== null && body.speed !== '') {
+    const value = typeof body.speed === 'number' ? body.speed : Number(body.speed)
+    if (!Number.isFinite(value) || value < 0.1 || value > 3) {
+      sendError(res, 400, { code: 'bad-request', message: 'Скорость речи должна быть числом от 0.1 до 3.0' })
+      return
+    }
+    speed = Math.round(value * 100) / 100
+  }
+
+  const previewSettings = {
+    ...settings,
+    voice: voiceEntry.id,
+    lang: voiceEntry.lang,
+    emotion,
+    speed,
+  }
+  try {
+    const result = await enqueueSpeech(() => synthesizeAnswer({ text: previewTextFor(voiceEntry.lang) }, previewSettings))
+    appendEvent('preview.ok', {
+      chars: result.chars,
+      chunks: result.chunks.length,
+      cached: result.cached,
+      voice: voiceEntry.id,
+      emotion,
+      speed,
+      ms: Date.now() - startedAt,
+    })
+    sendJson(res, 200, {
+      ok: true,
+      key: result.key,
+      voice: voiceEntry.id,
+      lang: voiceEntry.lang,
+      emotion,
+      speed,
+      format: settings.format,
+      mime: mimeForFormat(settings.format),
+      chars: result.chars,
+      cached: result.cached,
+      chunks: result.chunks,
+    })
+  } catch (error) {
+    sendEngineError(res, error, 'preview')
   }
 }
 
@@ -779,12 +1004,20 @@ async function handleRequest(req, res, config) {
     await handleSpeak(req, res, config)
     return
   }
+  if (pathname === `${ROUTE_PREFIX}/preview`) {
+    if (req.method !== 'POST') {
+      res.writeHead(405, { allow: 'POST' }).end()
+      return
+    }
+    await handlePreview(req, res, config)
+    return
+  }
   if (pathname === `${ROUTE_PREFIX}/preferences`) {
     if (req.method !== 'POST') {
       res.writeHead(405, { allow: 'POST' }).end()
       return
     }
-    await handlePreferences(req, res)
+    await handlePreferences(req, res, config)
     return
   }
   if (pathname.startsWith(`${ROUTE_PREFIX}/audio/`)) {

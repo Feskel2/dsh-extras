@@ -382,7 +382,22 @@ const REQUIRED_KEYS = [
   'pluginSettings.autoSpeak.title',
   'pluginSettings.autoSpeak.description',
   'pluginSettings.voice',
+  'pluginSettings.voice.description',
+  'pluginSettings.emotion',
+  'pluginSettings.emotion.description',
+  'pluginSettings.emotion.default',
+  'pluginSettings.emotion.unsupported',
+  'pluginSettings.emotionValue.neutral',
+  'pluginSettings.emotionValue.good',
+  'pluginSettings.emotionValue.evil',
+  'pluginSettings.emotionValue.whisper',
+  'pluginSettings.emotionValue.friendly',
   'pluginSettings.speed',
+  'pluginSettings.speed.description',
+  'pluginSettings.preview',
+  'pluginSettings.previewStop',
+  'pluginSettings.previewLoading',
+  'pluginSettings.previewError',
   'pluginSettings.range',
   'pluginSettings.unsaved',
 ]
@@ -493,11 +508,18 @@ const healthyStatus = {
   autoSpeak: true,
   enabled: true,
   voice: 'alena',
+  lang: 'ru-RU',
+  emotion: '',
   speed: 1.32,
   format: 'mp3',
   mime: 'audio/mpeg',
   summaryMaxChars: 700,
   summaryLimits: { min: 100, max: 2000, step: 50 },
+  voices: [
+    { id: 'alena', label: 'Alena — женский, нейтральный', lang: 'ru-RU', gender: 'F', emotions: ['neutral', 'good'] },
+    { id: 'marina', label: 'Marina — женский, нейтральный', lang: 'ru-RU', gender: 'F', emotions: ['neutral', 'whisper', 'friendly'] },
+    { id: 'john', label: 'John — мужской, английский', lang: 'en-US', gender: 'M' },
+  ],
   error: null,
 }
 const spokenChunks = [
@@ -506,6 +528,7 @@ const spokenChunks = [
 ]
 const speakPayloads = []
 const preferencePayloads = []
+const previewPayloads = []
 
 /**
  * Install one Host behaviour: healthy routes by default; `preferencesError`
@@ -524,6 +547,14 @@ function installHost(options = {}) {
       speakPayloads.push(init && typeof init.body === 'string' ? JSON.parse(init.body) : null)
       return jsonResponse({ ok: true, key: 'k', cached: false, chunks: spokenChunks })
     }
+    if (url.endsWith('/preview')) {
+      if (options.previewError) {
+        return jsonResponse({ ok: false, error: { code: 'upstream', message: 'Не удалось синтезировать пример' } }, 502)
+      }
+      const body = init && typeof init.body === 'string' ? JSON.parse(init.body) : {}
+      previewPayloads.push(body)
+      return jsonResponse({ ok: true, key: 'p', voice: body.voice, emotion: body.emotion ?? '', speed: body.speed, chunks: [spokenChunks[0]] })
+    }
     if (url.endsWith('/preferences')) {
       if (options.preferencesError) {
         return jsonResponse({ ok: false, error: { code: 'bad-request', message: 'Не удалось сохранить настройку' } }, 400)
@@ -534,7 +565,10 @@ function installHost(options = {}) {
       const enabled = options.preferencesEnabled === false ? false : true
       const summaryMaxChars =
         typeof body.summaryMaxChars === 'number' ? body.summaryMaxChars : options.status?.summaryMaxChars ?? 700
-      return jsonResponse({ ok: true, autoSpeak, enabled, summaryMaxChars })
+      const voice = typeof body.voice === 'string' ? body.voice : options.status?.voice ?? healthyStatus.voice
+      const emotion = typeof body.emotion === 'string' ? body.emotion : options.status?.emotion ?? healthyStatus.emotion
+      const speed = typeof body.speed === 'number' ? body.speed : options.status?.speed ?? healthyStatus.speed
+      return jsonResponse({ ok: true, autoSpeak, enabled, summaryMaxChars, voice, lang: healthyStatus.lang, emotion, speed })
     }
     return jsonResponse({ ok: false, error: { code: 'bad-request', message: 'not found' } }, 404)
   }
@@ -555,6 +589,12 @@ assert.equal(settings.getState().summaryLimits.min, 100)
 assert.equal(settings.getState().summaryLimits.max, 2000)
 assert.equal(settings.getState().summaryLimits.step, 50)
 assert.equal(settings.getState().voice, 'alena')
+assert.equal(settings.getState().emotion, '', 'the accepted intonation starts empty (the voice default)')
+assert.equal(settings.getState().speed, 1.32)
+assert.equal(settings.getState().voices.length, 3)
+assert.equal(settings.getState().voices.find((voice) => voice.id === 'john').lang, 'en-US')
+assert.equal(JSON.stringify(settings.getState().voices.find((voice) => voice.id === 'alena').emotions), '["neutral","good"]')
+assert.equal(settings.getState().voices.find((voice) => voice.id === 'john').emotions.length, 0, 'a voice without intonations keeps an empty list')
 assert.equal(settings.getState().speed, 1.32)
 assert.equal(statusCalls() - settingsStatusBefore, 1, 'refresh probed /status exactly once')
 assert.equal(await settings.refresh(), true)
@@ -921,6 +961,52 @@ const secondsLabel = findElement(
 )
 assert.ok(secondsLabel !== null, 'the page must show the speech-duration estimate')
 assert.equal(secondsLabel.props['data-voice-reply-summary-seconds'], '47')
+const voiceSelect = findElement(
+  pluginPage,
+  (element) => element.type === 'select' && 'data-voice-reply-voice-select' in element.props,
+)
+assert.ok(voiceSelect !== null, 'the page must expose the voice selector')
+assert.equal(voiceSelect.props.value, 'alena')
+assert.equal(voiceSelect.props.children.length, 3)
+assert.ok(JSON.stringify(voiceSelect.props.children).includes('John'), 'the Host voice catalogue is offered')
+const emotionSelect = findElement(
+  pluginPage,
+  (element) => element.type === 'select' && 'data-voice-reply-emotion-select' in element.props,
+)
+assert.ok(emotionSelect !== null, 'the page must expose the intonation selector')
+assert.equal(emotionSelect.props.value, 'neutral', 'the voice default is presented as neutral')
+assert.equal(emotionSelect.props.disabled, false)
+assert.equal(
+  JSON.stringify(emotionSelect.props.children.map((option) => option.props.value)),
+  JSON.stringify(['neutral', 'good']),
+  'only the intonations of the selected voice are offered',
+)
+const previewEmotionButton = findElement(
+  pluginPage,
+  (element) => element.type === 'button' && 'data-voice-reply-preview-emotion' in element.props,
+)
+assert.ok(previewEmotionButton !== null, 'the page must expose the intonation preview button')
+assert.equal(previewEmotionButton.props.disabled, false)
+const speedRange = findElement(
+  pluginPage,
+  (element) => element.type === 'input' && 'data-voice-reply-speed-range' in element.props,
+)
+assert.ok(speedRange !== null, 'the page must expose the speed slider')
+assert.equal(speedRange.props.value, 1.32)
+assert.equal(speedRange.props.min, 0.1)
+assert.equal(speedRange.props.max, 3)
+const speedValue = findElement(
+  pluginPage,
+  (element) => element.props !== undefined && 'data-voice-reply-speed-value' in element.props,
+)
+assert.ok(speedValue !== null)
+assert.ok(JSON.stringify(speedValue.props.children).includes('1.32'))
+const previewButton = findElement(
+  pluginPage,
+  (element) => element.type === 'button' && 'data-voice-reply-preview' in element.props,
+)
+assert.ok(previewButton !== null, 'the page must expose the voice preview button')
+assert.equal(previewButton.props.disabled, false)
 pass('plugin settings page renders the input, bounds, presets and speech estimate')
 
 summaryInput.props.onChange({ target: { value: '400' } })
@@ -973,6 +1059,150 @@ const resetInput = findElement(
 )
 assert.equal(resetInput.props.value, '400', 'reset restores the accepted value')
 pass('plugin settings page validates the range and reset restores the accepted budget')
+
+const previewBefore = audioUrls.length
+const previewPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const previewButtonFresh = findElement(
+  previewPage,
+  (element) => element.type === 'button' && 'data-voice-reply-preview' in element.props,
+)
+previewButtonFresh.props.onClick()
+await tick(10)
+assert.equal(previewPayloads.length, 1, 'preview requests one short sample from the Host')
+assert.deepEqual(previewPayloads.at(-1), { voice: 'alena', emotion: 'neutral', speed: 1.32 })
+assert.equal(audioUrls.length - previewBefore, 1, 'the preview sample is played through the shared player')
+assert.equal(player.getState().status, 'idle', 'the preview playback returns to idle')
+pass('plugin settings page previews the draft voice, intonation and speed through /preview')
+
+const voicePage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const voiceSelectEdit = findElement(
+  voicePage,
+  (element) => element.type === 'select' && 'data-voice-reply-voice-select' in element.props,
+)
+voiceSelectEdit.props.onChange({ target: { value: 'john' } })
+const speedEditedPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const speedRangeEdit = findElement(
+  speedEditedPage,
+  (element) => element.type === 'input' && 'data-voice-reply-speed-range' in element.props,
+)
+speedRangeEdit.props.onChange({ target: { value: '1.5' } })
+const editedVoicePage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const voiceSave = findElement(
+  editedVoicePage,
+  (element) => element.type === 'button' && 'data-voice-reply-summary-save' in element.props,
+)
+assert.equal(voiceSave.props.disabled, false, 'voice/speed edits enable saving')
+const preferencesBeforeVoiceSave = preferencesCalls()
+voiceSave.props.onClick()
+await tick(5)
+assert.equal(preferencesCalls() - preferencesBeforeVoiceSave, 1)
+assert.deepEqual(preferencePayloads.at(-1), { voice: 'john', emotion: '', speed: 1.5 })
+assert.equal(settings.getState().voice, 'john')
+assert.equal(settings.getState().emotion, '')
+assert.equal(settings.getState().speed, 1.5)
+const savedVoicePage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+assert.ok(JSON.stringify(savedVoicePage).includes('t:pluginSettings.saved'))
+installHost({ status: { voice: 'alena', speed: 1.32 } })
+assert.equal(await settings.savePreferences({ voice: 'alena', speed: 1.32 }), true)
+assert.equal(settings.getState().voice, 'alena')
+assert.equal(settings.getState().speed, 1.32)
+pass('plugin settings page saves the selected voice and speed through POST /preferences')
+
+/* ---- intonation: draft, preview, save and voice-dependent options ---- */
+const emotionResetPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const emotionResetButton = findElement(
+  emotionResetPage,
+  (element) => element.type === 'button' && 'data-voice-reply-summary-reset' in element.props,
+)
+assert.ok(emotionResetButton !== null)
+emotionResetButton.props.onClick()
+const emotionBasePage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const emotionBaseSelect = findElement(
+  emotionBasePage,
+  (element) => element.type === 'select' && 'data-voice-reply-emotion-select' in element.props,
+)
+assert.equal(emotionBaseSelect.props.value, 'neutral', 'reset keeps the voice-default intonation')
+emotionBaseSelect.props.onChange({ target: { value: 'good' } })
+const emotionEditedPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const emotionSave = findElement(
+  emotionEditedPage,
+  (element) => element.type === 'button' && 'data-voice-reply-summary-save' in element.props,
+)
+assert.equal(emotionSave.props.disabled, false, 'an intonation edit enables saving')
+const emotionPreviewButton = findElement(
+  emotionEditedPage,
+  (element) => element.type === 'button' && 'data-voice-reply-preview-emotion' in element.props,
+)
+assert.ok(emotionPreviewButton !== null)
+emotionPreviewButton.props.onClick()
+await tick(10)
+assert.deepEqual(previewPayloads.at(-1), { voice: 'alena', emotion: 'good', speed: 1.32 }, 'the sample uses the chosen intonation')
+const preferencesBeforeEmotionSave = preferencesCalls()
+emotionSave.props.onClick()
+await tick(5)
+assert.equal(preferencesCalls() - preferencesBeforeEmotionSave, 1)
+assert.deepEqual(preferencePayloads.at(-1), { emotion: 'good' })
+assert.equal(settings.getState().emotion, 'good')
+pass('plugin settings page previews and saves the selected intonation')
+
+const marinaPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const marinaVoiceSelect = findElement(
+  marinaPage,
+  (element) => element.type === 'select' && 'data-voice-reply-voice-select' in element.props,
+)
+marinaVoiceSelect.props.onChange({ target: { value: 'marina' } })
+const marinaEditedPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const marinaEmotionSelect = findElement(
+  marinaEditedPage,
+  (element) => element.type === 'select' && 'data-voice-reply-emotion-select' in element.props,
+)
+assert.equal(
+  JSON.stringify(marinaEmotionSelect.props.children.map((option) => option.props.value)),
+  JSON.stringify(['neutral', 'whisper', 'friendly']),
+  'switching the voice offers that voice intonations',
+)
+assert.equal(marinaEmotionSelect.props.value, 'neutral', 'an intonation the new voice lacks falls back to neutral')
+marinaEmotionSelect.props.onChange({ target: { value: 'whisper' } })
+const marinaSavedPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const marinaSave = findElement(
+  marinaSavedPage,
+  (element) => element.type === 'button' && 'data-voice-reply-summary-save' in element.props,
+)
+marinaSave.props.onClick()
+await tick(5)
+assert.deepEqual(preferencePayloads.at(-1), { voice: 'marina', emotion: 'whisper' })
+assert.equal(settings.getState().voice, 'marina')
+assert.equal(settings.getState().emotion, 'whisper')
+
+const noEmotionPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const noEmotionVoiceSelect = findElement(
+  noEmotionPage,
+  (element) => element.type === 'select' && 'data-voice-reply-voice-select' in element.props,
+)
+noEmotionVoiceSelect.props.onChange({ target: { value: 'john' } })
+const noEmotionEditedPage = renderHooks(pluginSettingsRegistration.component, pluginPageProps)
+const noEmotionSelect = findElement(
+  noEmotionEditedPage,
+  (element) => element.type === 'select' && 'data-voice-reply-emotion-select' in element.props,
+)
+assert.equal(noEmotionSelect.props.disabled, true, 'a voice without intonations disables the selector')
+assert.equal(JSON.stringify(noEmotionSelect.props.children.map((option) => option.props.value)), JSON.stringify(['']))
+assert.ok(
+  JSON.stringify(noEmotionEditedPage).includes('t:pluginSettings.emotion.unsupported'),
+  'the page explains that this voice has no intonations',
+)
+const noEmotionSave = findElement(
+  noEmotionEditedPage,
+  (element) => element.type === 'button' && 'data-voice-reply-summary-save' in element.props,
+)
+noEmotionSave.props.onClick()
+await tick(5)
+assert.deepEqual(preferencePayloads.at(-1), { voice: 'john', emotion: '' })
+assert.equal(settings.getState().voice, 'john')
+assert.equal(settings.getState().emotion, '')
+installHost({ status: { voice: 'alena', emotion: '', speed: 1.32 } })
+assert.equal(await settings.savePreferences({ voice: 'alena', emotion: '' }), true)
+pass('a voice without intonations keeps the selector disabled and clears the intonation')
 
 const autoSpeakSwitch = findElement(
   resetPage,

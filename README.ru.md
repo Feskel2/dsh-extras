@@ -6,7 +6,7 @@
 
 | Плагин | Что делает | Платформа | Установка |
 |---|---|---|---|
-| [`dsh-topmost-notify`](dsh-topmost-notify) | Нативное окно «поверх всех» + звук, когда агент завершил задачу; фокус не крадёт | Windows 10/11 | `dsh plugin --profile web add dsh-topmost-notify` |
+| [`dsh-topmost-notify`](dsh-topmost-notify) | Нативное окно «поверх всех» + звук, когда агент завершил задачу или нужен ответ; своя длительность и свой MP3/WAV-звук для каждого вида, отдельная страница настроек; фокус не крадёт | Windows 10/11 | `install.ps1` из репозитория (npm-пакет пока не опубликован) |
 | [`dsh-voice-reply`](dsh-voice-reply) | Озвучивает краткое содержание каждого финального ответа через Yandex SpeechKit TTS, кнопка 🔊 и своя страница настроек | DSH Web | `dsh plugin --profile web add dsh-voice-reply` |
 | [`dsh-speech-to-text-yandex`](dsh-speech-to-text-yandex) | Облачный провайдер распознавания речи (`yandex-speechkit`) для штатного Voice input | DSH Web | `dsh plugin --profile web add dsh-speech-to-text-yandex` |
 

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Voice replies",
-    "description": "Speaks a short summary of assistant answers with Yandex SpeechKit, adds a replay button, and lets you set the speech length in the plugin settings."
+    "description": "Speaks a short summary of assistant answers with Yandex SpeechKit, adds a replay button, and lets you set the length, voice, intonation and speed in the plugin settings."
   }
 }

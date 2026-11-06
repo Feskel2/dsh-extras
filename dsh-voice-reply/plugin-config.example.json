@@ -4,6 +4,7 @@
   "folderId": "",
   "endpoint": "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize",
   "voice": "marina",
+  "emotion": "",
   "lang": "ru-RU",
   "format": "mp3",
   "speed": 1.32,

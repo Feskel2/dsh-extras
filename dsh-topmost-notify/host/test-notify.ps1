@@ -11,8 +11,11 @@
          и само окно НЕ является foreground-окном;
       5) цветовое отличие: пиксели акцент-полоски (completed — синий, question — янтарный);
       6) окно закрывается само через durationMs, процесс выходит с кодом 0, окно исчезает;
-      7) нужный WAV существует и валиден (44.1 кГц/16 бит/моно ~1.2 с);
-      8) скриншоты: весь экран + кроп вокруг окна -> artifacts\notify-...-<kind>.png.
+      7) нужный WAV/MP3 существует и валиден (для WAV — 44.1 кГц/16 бит/моно ~1.2 с);
+      8) скриншоты: весь экран + кроп вокруг окна -> artifacts\notify-...-<kind>.png;
+      9) v1.1: свой WAV и свой MP3 в окне (звук берётся из payload.sound строкой);
+     10) v1.1: -PreviewSound — только звук, без окна, процесс выходит с кодом 0
+         (WAV-встроенный, свой WAV, свой MP3 из test\fixtures\valid-clip.mp3).
 
     Запуск:  powershell.exe -NoProfile -ExecutionPolicy Bypass -File host\test-notify.ps1
              ... -Kind completed | question | both (по умолчанию both)
@@ -184,15 +187,59 @@ function Test-WavFile([string]$path) {
     return $info
 }
 
+# --- проверка MP3-фикстура (сигнатура кадра ID3/0xFFEx + ненулевой размер) ---------------
+function Test-Mp3File([string]$path) {
+    $info = [pscustomobject]@{ Ok = $false; Info = '' }
+    if (-not (Test-Path -LiteralPath $path)) {
+        $info.Info = "нет файла: $path"
+        return $info
+    }
+    try {
+        $bytes = [System.IO.File]::ReadAllBytes($path)
+        $isId3 = ($bytes.Length -ge 3) -and ([System.Text.Encoding]::ASCII.GetString($bytes, 0, 3) -eq 'ID3')
+        $isFrame = ($bytes.Length -ge 2) -and ($bytes[0] -eq 0xFF) -and (($bytes[1] -band 0xE0) -eq 0xE0)
+        $info.Info = "mp3 {0} bytes, id3={1} frameSync={2}" -f $bytes.Length, $isId3, $isFrame
+        $info.Ok = ($isId3 -or $isFrame) -and ($bytes.Length -gt 1000)
+    }
+    catch {
+        $info.Info = "ошибка чтения: $($_.Exception.Message)"
+    }
+    return $info
+}
+
+# Разбор -Diag (stderr) в поля результата: файл/формат звука, длительность MP3, конец звука.
+function Update-DiagFields($Result) {
+    if (-not $Result.StdErr) { return }
+    $Result.DiagLines = @($Result.StdErr -split "`r?`n" | Where-Object { $_ -match 'diag:' })
+    $m = [regex]::Match($Result.StdErr, 'возраст процесса (\d+) мс')
+    if ($m.Success) { $Result.ProcAgeMs = [int]$m.Groups[1].Value }
+    $m = [regex]::Match($Result.StdErr, 'звук запущен \((wav|mp3)\): (\S+)')
+    if ($m.Success) {
+        $Result.SoundFormat = $m.Groups[1].Value
+        $Result.SoundFile = $m.Groups[2].Value
+    }
+    $m = [regex]::Match($Result.StdErr, 'diag:\s+(\d+) ms\s+звук запущен')
+    if ($m.Success) { $Result.SoundInternalMs = [int]$m.Groups[1].Value }
+    $m = [regex]::Match($Result.StdErr, 'mp3: длительность (\d+) ms')
+    if ($m.Success) { $Result.MediaDurationMs = [int]$m.Groups[1].Value }
+    if ($Result.StdErr -match 'MediaEnded') { $Result.MediaEnded = $true }
+    if ($Result.StdErr -match 'звук завершён \(') { $Result.SoundFinished = $true }
+}
+
 # --- один прогон уведомления заданного вида ------------------------------------------------
 function Invoke-NotifyRun {
-    param([string]$RunKind, [string]$RunTitle, [string]$RunBody)
+    param(
+        [string]$RunKind,
+        [string]$RunTitle,
+        [string]$RunBody,
+        [string]$RunSoundFile
+    )
 
     $payload = [ordered]@{
         title      = $RunTitle
         body       = $RunBody
         durationMs = $DurationMs
-        sound      = (-not $Silent)
+        sound      = $(if ($RunSoundFile) { $RunSoundFile } elseif ($Silent) { $false } else { $true })
         kind       = $RunKind
     }
     $json = ($payload | ConvertTo-Json -Compress)
@@ -234,7 +281,8 @@ function Invoke-NotifyRun {
         Exited = $false; ExitCode = -1; WindowGone = $false; LifetimeMs = 0
         ShotPath = ''; CropPath = ''; AccentRgb = @(0, 0, 0); AccentWarm = $false; AccentHex = ''
         ProcAgeMs = -1; ControllableMs = -1; SoundInternalMs = -1; VisibleInternalMs = -1; SoundDeltaMs = -1
-        SoundWav = ''; DiagLines = @(); StdErr = ''
+        SoundFile = ''; SoundFormat = ''; MediaDurationMs = -1; MediaEnded = $false; SoundFinished = $false
+        DiagLines = @(); StdErr = ''
     }
 
     if ($hwnd -eq [IntPtr]::Zero) {
@@ -322,15 +370,7 @@ function Invoke-NotifyRun {
     try { $null = $outTask.Result } catch { }
 
     # --- разбор диагностики ---------------------------------------------------------------
-    if ($result.StdErr) {
-        $result.DiagLines = @($result.StdErr -split "`r?`n" | Where-Object { $_ -match 'diag:' })
-        $m = [regex]::Match($result.StdErr, 'возраст процесса (\d+) мс')
-        if ($m.Success) { $result.ProcAgeMs = [int]$m.Groups[1].Value }
-        $m = [regex]::Match($result.StdErr, 'звук запущен: (\S+?\.wav)')
-        if ($m.Success) { $result.SoundWav = $m.Groups[1].Value }
-        $m = [regex]::Match($result.StdErr, 'diag:\s+(\d+) ms\s+звук запущен')
-        if ($m.Success) { $result.SoundInternalMs = [int]$m.Groups[1].Value }
-    }
+    Update-DiagFields $result
     if ($result.ProcAgeMs -ge 0) {
         $result.ControllableMs = $result.LatencyMs - $result.ProcAgeMs
         $result.VisibleInternalMs = $result.ControllableMs
@@ -338,6 +378,65 @@ function Invoke-NotifyRun {
             $result.SoundDeltaMs = $result.SoundInternalMs - $result.VisibleInternalMs
         }
     }
+    return $result
+}
+
+# --- прогон -PreviewSound: только звук, окна быть не должно, выход 0 ----------------------
+function Invoke-PreviewSoundRun {
+    param(
+        [string]$RunKind,
+        [string]$RunTitle,
+        [string]$RunBody,
+        [string]$RunSoundFile
+    )
+
+    $payload = [ordered]@{
+        title      = $RunTitle
+        body       = $RunBody
+        durationMs = 1000
+        sound      = $(if ($RunSoundFile) { $RunSoundFile } else { $true })
+        kind       = $RunKind
+    }
+    $json = ($payload | ConvertTo-Json -Compress)
+    $b64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($json))
+
+    $argLine = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -PayloadBase64 {1} -Diag -PreviewSound' -f $notifyPs1, $b64
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $psExe
+    $psi.Arguments = $argLine
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    $procId = [uint32]$proc.Id
+    $errTask = $proc.StandardError.ReadToEndAsync()
+    $outTask = $proc.StandardOutput.ReadToEndAsync()
+
+    $result = [pscustomobject]@{
+        Kind = $RunKind; Json = $json; Hwnd = [IntPtr]::Zero; LatencyMs = -1
+        Exited = $false; ExitCode = -1; WindowGone = $true; LifetimeMs = 0
+        SoundFile = ''; SoundFormat = ''; MediaDurationMs = -1; MediaEnded = $false; SoundFinished = $false
+        ProcAgeMs = -1; SoundInternalMs = -1; DiagLines = @(); StdErr = ''
+    }
+
+    # Окна быть не должно: параллельно следим, чтобы оно не появилось, и ждём выхода процесса.
+    $deadline = 15000
+    while (-not $proc.HasExited -and $sw.ElapsedMilliseconds -lt $deadline) {
+        $w = [WinProbe]::FindVisible($procId, 'DSH topmost-notify')
+        if ($w -ne [IntPtr]::Zero) { $result.Hwnd = $w; break }
+        [System.Threading.Thread]::Sleep(10)
+    }
+    $result.Exited = $proc.WaitForExit(20000)
+    $result.LifetimeMs = [int]$sw.ElapsedMilliseconds
+    if ($result.Exited) { $result.ExitCode = $proc.ExitCode }
+    $result.WindowGone = ($result.Hwnd -eq [IntPtr]::Zero) -or (-not [WinProbe]::Alive($result.Hwnd))
+
+    try { $result.StdErr = $errTask.Result } catch { }
+    try { $null = $outTask.Result } catch { }
+    Update-DiagFields $result
     return $result
 }
 
@@ -392,7 +491,7 @@ foreach ($k in $kinds) {
     Write-Output ("[1b]   process age at script start           : {0} ms" -f $run.ProcAgeMs)
     Write-Output ("[1c]   controllable part (script -> window)  : {0} ms" -f $run.ControllableMs)
     Write-Output ("[2] sound start (internal)                   : {0} ms  -> delta to window = {1} ms" -f $run.SoundInternalMs, $run.SoundDeltaMs)
-    Write-Output ("[3] sound file                               : {0}" -f $run.SoundWav)
+    Write-Output ("[3] sound file                               : {0}  ({1})" -f $run.SoundFile, $run.SoundFormat)
     Write-Output ("[4] hwnd                                     : {0}  class={1}  title=""{2}""" -f (Format-Hwnd $run.Hwnd), $run.Class, $run.Title)
     Write-Output ("[5] exstyle                                  : 0x{0:X8}  WS_EX_TOPMOST={1}  WS_EX_NOACTIVATE={2}" -f $run.ExStyle, $run.Topmost, $run.NoActivate)
     Write-Output ("[6] window rect                              : L={0} T={1} R={2} B={3}  ({4}x{5})" -f $run.Rect[0], $run.Rect[1], $run.Rect[2], $run.Rect[3], ($run.Rect[2] - $run.Rect[0]), ($run.Rect[3] - $run.Rect[1]))
@@ -406,7 +505,7 @@ foreach ($k in $kinds) {
 
     $wav = Test-WavFile $meta.Wav
     $expectedWavName = Split-Path -Path $meta.Wav -Leaf
-    $wavMatches = ($run.SoundWav -eq $expectedWavName)
+    $wavMatches = ($run.SoundFile -eq $expectedWavName)
 
     Add-Check $k 'topmost' $(if ($run.Topmost) { 'PASS' } else { 'FAIL' }) ("WS_EX_TOPMOST=0x{0:X8}" -f $run.ExStyle)
     Add-Check $k 'on-top-pixel' $(if ($run.HitSame) { 'PASS' } else { 'FAIL' }) 'WindowFromPoint(центр) == наше окно'
@@ -416,12 +515,12 @@ foreach ($k in $kinds) {
     Add-Check $k 'auto-close' $(if ($run.Exited -and $run.WindowGone -and $run.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }) ("exited={0} exitCode={1} windowGone={2}" -f $run.Exited, $run.ExitCode, $run.WindowGone)
     Add-Check $k 'lifetime-bound' $(if ($run.LifetimeMs -le ($DurationMs + 3000)) { 'PASS' } else { 'FAIL' }) ("{0} ms <= durationMs+3000" -f $run.LifetimeMs)
     Add-Check $k 'wav-valid' $(if ($wav.Ok) { 'PASS' } else { 'FAIL' }) $wav.Info
-    Add-Check $k 'wav-matches-kind' $(if ($wavMatches) { 'PASS' } else { 'FAIL' }) ("звук: {0} (ожидался {1})" -f $run.SoundWav, $expectedWavName)
+    Add-Check $k 'wav-matches-kind' $(if ($wavMatches) { 'PASS' } else { 'FAIL' }) ("звук: {0} (ожидался {1})" -f $run.SoundFile, $expectedWavName)
     if ($Silent) {
         Add-Check $k 'sound-invoked' 'PASS' 'пропущено (-Silent)'
     }
     else {
-        Add-Check $k 'sound-invoked' $(if ($run.SoundWav) { 'PASS' } else { 'FAIL' }) 'notify.ps1 подтвердил запуск SoundPlayer'
+        Add-Check $k 'sound-invoked' $(if ($run.SoundFile) { 'PASS' } else { 'FAIL' }) 'notify.ps1 подтвердил запуск SoundPlayer'
     }
     if ($Silent) {
         Add-Check $k 'sound-synced' 'PASS' 'пропущено (-Silent)'
@@ -441,6 +540,96 @@ foreach ($k in $kinds) {
         Add-Check $k 'latency' 'WARN' ("{0} ms > {1} ms — пол (запуск powershell.exe) {2} ms, управляемая часть {3} ms" -f $run.LatencyMs, $LatencyTargetMs, $floorMs, $run.ControllableMs)
     }
 }
+
+# --- v1.1: дополнительно свой WAV, свой MP3 и -PreviewSound -------------------------------
+$customWav = Join-Path $here 'chime-question.wav'
+$mp3Fixture = Join-Path $projectRoot 'test\fixtures\valid-clip.mp3'
+$customWavInfo = Test-WavFile $customWav
+$mp3Info = Test-Mp3File $mp3Fixture
+Add-Check 'files' 'custom-wav-valid' $(if ($customWavInfo.Ok) { 'PASS' } else { 'FAIL' }) $customWavInfo.Info
+Add-Check 'files' 'mp3-fixture-valid' $(if ($mp3Info.Ok) { 'PASS' } else { 'FAIL' }) $mp3Info.Info
+
+function Report-SoundRun([string]$Name, $Run, [string]$ExpectFile, [string]$ExpectFormat) {
+    $leaf = Split-Path -Path $ExpectFile -Leaf
+    Write-Output ("payload                    : {0}" -f $Run.Json)
+    Write-Output ("hwnd                       : {0}" -f (Format-Hwnd $Run.Hwnd))
+    Write-Output ("sound file / format        : {0} / {1}  (ожидался {2})" -f $Run.SoundFile, $Run.SoundFormat, $leaf)
+    Write-Output ("exited={0} exitCode={1} lifetime={2} ms  windowGone={3}" -f $Run.Exited, $Run.ExitCode, $Run.LifetimeMs, $Run.WindowGone)
+    $soundOk = ($Run.SoundFile -eq $leaf) -and ($Run.SoundFormat -eq $ExpectFormat)
+    Add-Check $Name 'custom-sound-used' $(if ($soundOk) { 'PASS' } else { 'FAIL' }) ("звук {0} ({1}), ожидался {2} ({3})" -f $Run.SoundFile, $Run.SoundFormat, $leaf, $ExpectFormat)
+    Add-Check $Name 'auto-close' $(if ($Run.Exited -and $Run.WindowGone -and $Run.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }) ("exited={0} exitCode={1} windowGone={2}" -f $Run.Exited, $Run.ExitCode, $Run.WindowGone)
+    if ($Run.Hwnd -ne [IntPtr]::Zero) {
+        Add-Check $Name 'topmost' $(if ($Run.Topmost) { 'PASS' } else { 'FAIL' }) ("WS_EX_TOPMOST=0x{0:X8}" -f $Run.ExStyle)
+        Add-Check $Name 'window-not-foreground' $(if ($Run.FgAfter -ne $Run.Hwnd) { 'PASS' } else { 'FAIL' }) ("foreground=" + (Format-Hwnd $Run.FgAfter) + ", наше окно=" + (Format-Hwnd $Run.Hwnd))
+        if ($Run.FgBefore -eq $Run.FgAfter) {
+            Add-Check $Name 'focus-unchanged' 'PASS' ("foreground " + (Format-Hwnd $Run.FgBefore) + " -> " + (Format-Hwnd $Run.FgAfter))
+        }
+        else {
+            # на этом стенде параллельно может работать e2e-сессия: чужое окно легко перехватывает фокус,
+            # поэтому для дополнительных прогонов это WARN (важно, что фокус не у НАШЕГО окна).
+            Add-Check $Name 'focus-unchanged' 'WARN' ("foreground сменился посторонним окном: {0} -> {1}" -f (Format-Hwnd $Run.FgBefore), (Format-Hwnd $Run.FgAfter))
+        }
+    }
+    if ($ExpectFormat -eq 'mp3') {
+        $played = $Run.MediaEnded -or ($Run.MediaDurationMs -gt 0 -and $Run.LifetimeMs -ge $Run.MediaDurationMs)
+        Add-Check $Name 'mp3-played' $(if ($played) { 'PASS' } else { 'FAIL' }) ("MediaEnded={0} mediaDurationMs={1} lifetime={2} ms" -f $Run.MediaEnded, $Run.MediaDurationMs, $Run.LifetimeMs)
+    }
+}
+
+function Report-PreviewRun([string]$Name, $Run, [string]$ExpectFile, [string]$ExpectFormat) {
+    $leaf = Split-Path -Path $ExpectFile -Leaf
+    Write-Output ("payload                    : {0}" -f $Run.Json)
+    Write-Output ("hwnd (должно быть 0)       : {0}" -f (Format-Hwnd $Run.Hwnd))
+    Write-Output ("sound file / format        : {0} / {1}  (ожидался {2})" -f $Run.SoundFile, $Run.SoundFormat, $leaf)
+    Write-Output ("exited={0} exitCode={1} lifetime={2} ms  soundFinished={3}" -f $Run.Exited, $Run.ExitCode, $Run.LifetimeMs, $Run.SoundFinished)
+    Add-Check $Name 'no-window' $(if ($Run.Hwnd -eq [IntPtr]::Zero) { 'PASS' } else { 'FAIL' }) ("окно: " + (Format-Hwnd $Run.Hwnd))
+    Add-Check $Name 'exit-0' $(if ($Run.Exited -and $Run.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }) ("exited={0} exitCode={1}" -f $Run.Exited, $Run.ExitCode)
+    $soundOk = ($Run.SoundFile -eq $leaf) -and ($Run.SoundFormat -eq $ExpectFormat)
+    Add-Check $Name 'sound-file' $(if ($soundOk) { 'PASS' } else { 'FAIL' }) ("звук {0} ({1}), ожидался {2} ({3})" -f $Run.SoundFile, $Run.SoundFormat, $leaf, $ExpectFormat)
+    Add-Check $Name 'sound-finished' $(if ($Run.SoundFinished) { 'PASS' } else { 'FAIL' }) 'notify.ps1 дождался конца звука до выхода'
+    Add-Check $Name 'played-long-enough' $(if ($Run.LifetimeMs -ge 900) { 'PASS' } else { 'FAIL' }) ("{0} ms >= 900 ms (звук не оборван сразу)" -f $Run.LifetimeMs)
+    if ($ExpectFormat -eq 'mp3') {
+        $played = $Run.MediaEnded -or ($Run.MediaDurationMs -gt 0)
+        Add-Check $Name 'mp3-played' $(if ($played) { 'PASS' } else { 'FAIL' }) ("MediaEnded={0} mediaDurationMs={1}" -f $Run.MediaEnded, $Run.MediaDurationMs)
+    }
+}
+
+Write-Output ''
+Write-Output '--- прогон: custom WAV в окне ---'
+$runCustomWav = Invoke-NotifyRun -RunKind 'completed' -RunTitle 'Свой WAV' -RunBody 'Проверка своего WAV-файла в окне' -RunSoundFile $customWav
+$runs += $runCustomWav
+if ($runCustomWav.Hwnd -eq [IntPtr]::Zero) {
+    Add-Check 'custom-wav' 'visible-window' 'FAIL' 'окно не появилось за 10 с'
+}
+else {
+    Report-SoundRun 'custom-wav' $runCustomWav $customWav 'wav'
+}
+
+Write-Output ''
+Write-Output '--- прогон: custom MP3 в окне ---'
+$runCustomMp3 = Invoke-NotifyRun -RunKind 'question' -RunTitle 'Свой MP3' -RunBody 'Проверка своего MP3-файла в окне' -RunSoundFile $mp3Fixture
+$runs += $runCustomMp3
+if ($runCustomMp3.Hwnd -eq [IntPtr]::Zero) {
+    Add-Check 'custom-mp3' 'visible-window' 'FAIL' 'окно не появилось за 10 с'
+}
+else {
+    Report-SoundRun 'custom-mp3' $runCustomMp3 $mp3Fixture 'mp3'
+}
+
+Write-Output ''
+Write-Output '--- прогон: -PreviewSound (встроенный chime.wav, без окна) ---'
+$previewBundled = Invoke-PreviewSoundRun -RunKind 'completed' -RunTitle 'Прослушать встроенный' -RunBody ''
+Report-PreviewRun 'preview-bundled' $previewBundled (Join-Path $here 'chime.wav') 'wav'
+
+Write-Output ''
+Write-Output '--- прогон: -PreviewSound (свой WAV, без окна) ---'
+$previewWav = Invoke-PreviewSoundRun -RunKind 'question' -RunTitle 'Прослушать WAV' -RunBody '' -RunSoundFile $customWav
+Report-PreviewRun 'preview-wav' $previewWav $customWav 'wav'
+
+Write-Output ''
+Write-Output '--- прогон: -PreviewSound (свой MP3, без окна) ---'
+$previewMp3 = Invoke-PreviewSoundRun -RunKind 'question' -RunTitle 'Прослушать MP3' -RunBody '' -RunSoundFile $mp3Fixture
+Report-PreviewRun 'preview-mp3' $previewMp3 $mp3Fixture 'mp3'
 
 Write-Output '=== checks ==='
 foreach ($c in $allChecks) {

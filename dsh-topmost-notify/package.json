@@ -1,12 +1,13 @@
 {
   "name": "dsh-topmost-notify",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Native always-on-top task-finished and answer-needed notifications with a chime for DSH Web on Windows",
   "type": "module",
   "main": "index.mjs",
   "exports": {
     ".": "./index.mjs",
     "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
   "icon": "./icon.svg",
@@ -20,6 +21,7 @@
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
         "@deepseek-ai/dsh-client-ui-conversation"
       ]
     }
@@ -56,6 +58,7 @@
     "host/notify.ps1",
     "host/chime.wav",
     "host/chime-question.wav",
+    "locale/*.json",
     "README.md",
     "README.ru.md",
     "LICENSE",
@@ -65,6 +68,6 @@
     "assets/*.png"
   ],
   "scripts": {
-    "test": "node test/index-smoke.mjs && node test/client-smoke.mjs"
+    "test": "node test/index-smoke.mjs && node test/host-api.test.mjs && node test/client-smoke.mjs"
   }
 }

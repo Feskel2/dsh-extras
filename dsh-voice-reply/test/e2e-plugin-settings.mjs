@@ -23,6 +23,9 @@ const network = []
 let savedConfigRaw = null
 let mockServer = null
 const spokenRequests = []
+let initialVoice = null
+let initialSpeed = null
+let initialEmotion = null
 
 /**
  * Record one check.
@@ -46,7 +49,13 @@ async function startMockTts() {
     req.on('end', () => {
       const body = Buffer.concat(chunks).toString('utf8')
       const params = new URLSearchParams(body)
-      spokenRequests.push({ text: params.get('text') ?? '', bytes: Buffer.byteLength(body) })
+      spokenRequests.push({
+        text: params.get('text') ?? '',
+        bytes: Buffer.byteLength(body),
+        voice: params.get('voice'),
+        emotion: params.get('emotion'),
+        speed: params.get('speed'),
+      })
       res.writeHead(200, { 'content-type': 'audio/mpeg' })
       res.end(Buffer.from('FAKE-MP3'))
     })
@@ -77,6 +86,17 @@ page.onEvent((message) => {
   if (message.method === 'Network.responseReceived' && String(message.params.response.url).includes('/dsh-voice-reply/preferences')) {
     network.push({ kind: 'response', status: message.params.response.status, url: message.params.response.url })
   }
+  if (message.method === 'Network.requestWillBeSent' && String(message.params.request.url).includes('/dsh-voice-reply/preview')) {
+    network.push({
+      kind: 'request',
+      method: message.params.request.method,
+      url: message.params.request.url,
+      postData: message.params.request.postData,
+    })
+  }
+  if (message.method === 'Network.responseReceived' && String(message.params.response.url).includes('/dsh-voice-reply/preview')) {
+    network.push({ kind: 'response', status: message.params.response.status, url: message.params.response.url })
+  }
 })
 
 try {
@@ -88,7 +108,18 @@ try {
 
   const statusBefore = await page.evaluate(`(async () => (await fetch('/dsh-voice-reply/status')).json())()`)
   check('status exposes summaryMaxChars and limits', Number.isFinite(statusBefore?.summaryMaxChars), statusBefore)
+  check('status exposes the voice catalogue', Array.isArray(statusBefore?.voices) && statusBefore.voices.length > 0, statusBefore?.voices?.length)
+  check(
+    'status exposes the accepted intonation and its options',
+    typeof statusBefore?.emotion === 'string' && Array.isArray(statusBefore?.emotionOptions),
+    { emotion: statusBefore?.emotion, options: statusBefore?.emotionOptions },
+  )
   const initialBudget = statusBefore.summaryMaxChars
+  initialVoice = statusBefore.voice
+  initialSpeed = statusBefore.speed
+  initialEmotion = statusBefore.emotion ?? ''
+  const initialVoiceEntry = (statusBefore.voices ?? []).find((voice) => voice.id === initialVoice)
+  const initialEmotions = Array.isArray(initialVoiceEntry?.emotions) ? initialVoiceEntry.emotions : []
 
   /* ---- Plugins → bundle → Configure ---- */
   const opened = await page.evaluate(`(() => {
@@ -130,12 +161,31 @@ try {
       const range = root === null ? null : root.querySelector('[data-voice-reply-summary-range]');
       const save = root === null ? null : root.querySelector('[data-voice-reply-summary-save]');
       const auto = root === null ? null : root.querySelector('[data-voice-reply-plugin-autospeak]');
+      const voice = root === null ? null : root.querySelector('[data-voice-reply-voice-select]');
+      const emotion = root === null ? null : root.querySelector('[data-voice-reply-emotion-select]');
+      const speed = root === null ? null : root.querySelector('[data-voice-reply-speed-range]');
+      const speedValue = root === null ? null : root.querySelector('[data-voice-reply-speed-value]');
+      const preview = root === null ? null : root.querySelector('[data-voice-reply-preview]');
+      const previewEmotion = root === null ? null : root.querySelector('[data-voice-reply-preview-emotion]');
       return {
-        text: root === null ? '' : (root.innerText || '').slice(0, 500),
+        text: root === null ? '' : (root.innerText || '').slice(0, 700),
         input: input === null ? null : { value: input.value, min: input.min, max: input.max, step: input.step, disabled: input.disabled },
         range: range === null ? null : { value: range.value, disabled: range.disabled },
         save: save === null ? null : { disabled: save.disabled, text: (save.innerText || '').trim() },
         auto: auto === null ? null : auto.getAttribute('aria-checked'),
+        voice: voice === null ? null : { value: voice.value, options: voice.options.length, disabled: voice.disabled },
+        emotion:
+          emotion === null
+            ? null
+            : {
+                value: emotion.value,
+                options: [...emotion.options].map((option) => option.value),
+                disabled: emotion.disabled,
+              },
+        speed: speed === null ? null : { value: speed.value, min: speed.min, max: speed.max, step: speed.step, disabled: speed.disabled },
+        speedValue: speedValue === null ? null : (speedValue.innerText || '').trim(),
+        preview: preview === null ? null : { disabled: preview.disabled, text: (preview.innerText || '').trim() },
+        previewEmotion: previewEmotion === null ? null : { disabled: previewEmotion.disabled, text: (previewEmotion.innerText || '').trim() },
       };
     })()`)
     check('page shows the Max chars control', /Максимум символов/i.test(rendered.text), rendered)
@@ -143,6 +193,27 @@ try {
     check('range control mirrors the budget', rendered.range?.value === String(initialBudget), rendered.range)
     check('save is disabled without edits', rendered.save?.disabled === true, rendered.save)
     check('auto-speak switch present', rendered.auto?.toString() === 'true' || rendered.auto?.toString() === 'false', rendered.auto)
+    check('voice selector shows the Host catalogue', rendered.voice?.value === initialVoice && rendered.voice?.options > 1, rendered.voice)
+    const expectedInitialEmotion = initialEmotions.length === 0
+      ? ''
+      : initialEmotions.includes(initialEmotion)
+        ? initialEmotion
+        : initialEmotions.includes('neutral')
+          ? 'neutral'
+          : initialEmotions[0]
+    check(
+      'intonation selector shows the voice options',
+      rendered.emotion !== null &&
+        JSON.stringify(rendered.emotion.options) === JSON.stringify(initialEmotions.length === 0 ? [''] : initialEmotions) &&
+        rendered.emotion.value === expectedInitialEmotion &&
+        rendered.emotion.disabled === (initialEmotions.length === 0),
+      rendered.emotion,
+    )
+    check('intonation preview button is present', rendered.previewEmotion?.disabled === false, rendered.previewEmotion)
+    check('speed slider mirrors the Host speed', rendered.speed?.value === String(initialSpeed) && rendered.speed?.min === '0.1' && rendered.speed?.max === '3', rendered.speed)
+    check('speed readout is rendered', /1\.32|1\.5/.test(rendered.speedValue ?? ''), rendered.speedValue)
+    check('voice preview button is present', rendered.preview?.disabled === false && /Прослушать/i.test(rendered.preview?.text ?? ''), rendered.preview)
+    await page.screenshot(path.join(ARTIFACTS, 'e2e-plugin-settings.png'))
 
     /* ---- change the budget to 350 and save ---- */
     const edited = await page.evaluate(`(() => {
@@ -176,9 +247,125 @@ try {
     check('save succeeds', preferenceResponse?.status === 200, preferenceResponse)
     const statusAfterSave = await page.evaluate(`(async () => (await fetch('/dsh-voice-reply/status')).json())()`)
     check('status reflects the new budget', statusAfterSave?.summaryMaxChars === 350, statusAfterSave?.summaryMaxChars)
-    await page.screenshot(path.join(ARTIFACTS, 'e2e-plugin-settings.png'))
+
+    /* ---- choose another voice/speed/intonation, preview it and save it ---- */
+    const targetVoice = initialVoice === 'alena' ? 'marina' : 'alena'
+    const targetSpeed = Math.abs(initialSpeed - 1.5) < 0.01 ? 1.1 : 1.5
+    const targetEmotion = targetVoice === 'marina' ? 'whisper' : 'good'
+    await page.evaluate(`(() => {
+      const voice = document.querySelector('[data-voice-reply-voice-select]');
+      const speed = document.querySelector('[data-voice-reply-speed-range]');
+      if (voice === null || speed === null) return false;
+      const voiceSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+      voiceSetter.call(voice, ${JSON.stringify(targetVoice)});
+      voice.dispatchEvent(new Event('change', { bubbles: true }));
+      const speedSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      speedSetter.call(speed, ${JSON.stringify(String(targetSpeed))});
+      speed.dispatchEvent(new Event('input', { bubbles: true }));
+      speed.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`)
+    await sleep(500)
+    const voiceDraftState = await page.evaluate(`(() => {
+      const voice = document.querySelector('[data-voice-reply-voice-select]');
+      const speed = document.querySelector('[data-voice-reply-speed-range]');
+      const save = document.querySelector('[data-voice-reply-summary-save]');
+      return {
+        voice: voice === null ? null : voice.value,
+        speed: speed === null ? null : speed.value,
+        saveDisabled: save === null ? null : save.disabled,
+      };
+    })()`)
+    check('voice draft is selected', voiceDraftState.voice === targetVoice, voiceDraftState)
+    check('speed draft is selected', Number(voiceDraftState.speed) === targetSpeed, voiceDraftState)
+
+    const emotionEdited = await page.evaluate(`(() => {
+      const emotion = document.querySelector('[data-voice-reply-emotion-select]');
+      if (emotion === null) return false;
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+      setter.call(emotion, ${JSON.stringify(targetEmotion)});
+      emotion.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`)
+    check('intonation draft edited', emotionEdited === true)
+    await sleep(400)
+    const emotionDraftState = await page.evaluate(`(() => {
+      const emotion = document.querySelector('[data-voice-reply-emotion-select]');
+      const save = document.querySelector('[data-voice-reply-summary-save]');
+      return {
+        value: emotion === null ? null : emotion.value,
+        disabled: emotion === null ? null : emotion.disabled,
+        options: emotion === null ? [] : [...emotion.options].map((option) => option.value),
+        saveDisabled: save === null ? null : save.disabled,
+      };
+    })()`)
+    check('intonation draft is selected', emotionDraftState.value === targetEmotion, emotionDraftState)
+    check('the new voice offers its own intonations', emotionDraftState.options.includes(targetEmotion), emotionDraftState)
+    check('voice/speed/intonation edits enable saving', voiceDraftState.saveDisabled === false && emotionDraftState.saveDisabled === false, {
+      voice: voiceDraftState,
+      emotion: emotionDraftState,
+    })
+
+    const previewClicked = await page.evaluate(`(() => {
+      const button = document.querySelector('[data-voice-reply-preview]');
+      if (button === null) return false;
+      button.click();
+      return true;
+    })()`)
+    check('voice preview clicked', previewClicked === true)
+    await sleep(1500)
+    const previewRequest = network.filter((entry) => entry.kind === 'request' && entry.url.endsWith('/preview')).pop()
+    const previewResponse = network.filter((entry) => entry.kind === 'response' && entry.url.endsWith('/preview')).pop()
+    let previewBody = null
+    try {
+      previewBody = previewRequest === undefined ? null : JSON.parse(previewRequest.postData)
+    } catch {
+      previewBody = null
+    }
+    check('preview requests the draft voice and speed', previewBody?.voice === targetVoice && previewBody?.speed === targetSpeed, previewBody)
+    check('preview requests the draft intonation', previewBody?.emotion === targetEmotion, previewBody)
+    check('preview succeeds', previewResponse?.status === 200, previewResponse)
+    check('the mock TTS received the draft intonation', spokenRequests.at(-1)?.emotion === targetEmotion, spokenRequests.at(-1))
+    const previewStopLabel = await page.evaluate(`(() => {
+      const button = document.querySelector('[data-voice-reply-preview]');
+      return button === null ? '' : (button.innerText || '').trim();
+    })()`)
+    if (/Остановить|Stop/i.test(previewStopLabel)) {
+      await page.evaluate(`(() => {
+        const button = document.querySelector('[data-voice-reply-preview]');
+        if (button !== null) button.click();
+        return true;
+      })()`)
+      await sleep(300)
+    }
+
+    const voiceSaveClicked = await page.evaluate(`(() => {
+      const save = document.querySelector('[data-voice-reply-summary-save]');
+      if (save === null) return false;
+      save.click();
+      return true;
+    })()`)
+    check('voice/speed save clicked', voiceSaveClicked === true)
+    await sleep(1500)
+    const voicePreferenceRequest = network
+      .filter((entry) => entry.kind === 'request' && entry.url.endsWith('/preferences'))
+      .pop()
+    let voicePreferenceBody = null
+    try {
+      voicePreferenceBody = voicePreferenceRequest === undefined ? null : JSON.parse(voicePreferenceRequest.postData)
+    } catch {
+      voicePreferenceBody = null
+    }
+    check('save posts the chosen voice and speed', voicePreferenceBody?.voice === targetVoice && voicePreferenceBody?.speed === targetSpeed, voicePreferenceBody)
+    check('save posts the chosen intonation', voicePreferenceBody?.emotion === targetEmotion, voicePreferenceBody)
+    const statusAfterVoiceSave = await page.evaluate(`(async () => (await fetch('/dsh-voice-reply/status')).json())()`)
+    check('status reflects the voice', statusAfterVoiceSave?.voice === targetVoice, statusAfterVoiceSave?.voice)
+    check('status reflects the speed', statusAfterVoiceSave?.speed === targetSpeed, statusAfterVoiceSave?.speed)
+    check('status reflects the intonation', statusAfterVoiceSave?.emotion === targetEmotion, statusAfterVoiceSave?.emotion)
+    await page.screenshot(path.join(ARTIFACTS, 'e2e-plugin-settings-voice.png'))
 
     /* ---- a long answer is summarized before TTS ---- */
+    spokenRequests.length = 0
     const unique = Date.now().toString(36)
     const answer = `# Подробный ответ ${unique}\n\n${'Это длинное пояснение, которое не нужно читать голосом целиком, потому что слушателю важна только суть. '.repeat(12)}\n\n\`\`\`js\nconst hidden = "код не должен озвучиваться";\n\`\`\`\n\nИтог: плагин озвучивает короткое содержание, а не весь ответ. Уникальный маркер: ${unique}.`
     const spoken = await page.evaluate(`(async () => {
@@ -245,6 +432,17 @@ try {
     /* ignore */
   }
 } finally {
+  if (initialVoice !== null && initialSpeed !== null) {
+    try {
+      await fetch(`${URL}/dsh-voice-reply/preferences`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ voice: initialVoice, speed: initialSpeed, emotion: initialEmotion ?? '' }),
+      })
+    } catch {
+      /* best effort: config restoration below still runs */
+    }
+  }
   if (savedConfigRaw !== null) fs.writeFileSync(configFile, savedConfigRaw, 'utf8')
   if (mockServer !== null) await new Promise((resolve) => mockServer.close(resolve))
   const summary = {

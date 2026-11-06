@@ -1,6 +1,6 @@
 {
   "name": "dsh-voice-reply",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Voice replies for DSH Web: reads a short spoken summary of assistant answers with Yandex SpeechKit TTS and adds a replay button to every finalized answer",
   "type": "module",
   "exports": {

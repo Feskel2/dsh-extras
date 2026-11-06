@@ -18,6 +18,7 @@ CONTRACT.md
 artifacts/
 *.log
 notify-debug.log
+sounds/
 probe-out.txt
 node_modules/
 *.tgz

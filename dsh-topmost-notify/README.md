@@ -2,14 +2,14 @@
 
 A native always-on-top notification with a chime when a DSH Web task finishes — or when the agent is waiting for your answer. Windows only.
 
-**Install:** `dsh plugin --profile web add dsh-topmost-notify`
+**Install:** `dsh plugin --profile web add dsh-topmost-notify` (npm release pending) · from this repository: `powershell -ExecutionPolicy Bypass -File dsh-topmost-notify\install.ps1`
 
 | | |
 |---|---|
 | **Platform** | Windows 10/11 · DSH Web profile |
 | **DSH** | `>=0.2.2-rc.1 <0.3.0-0` |
 | **Node.js** | `>=24.9.0` (DSH requirement) |
-| **Install** | `dsh plugin --profile web add dsh-topmost-notify` |
+| **Install** | repo `install.ps1` (bundle) or `dsh plugin --profile web add dsh-topmost-notify` |
 | **License** | MIT |
 
 ![Question notification shown over a fullscreen video](assets/question.png)
@@ -23,17 +23,30 @@ A turn can run for minutes while you work in another application, watch a fullsc
 - When a top-level chat finishes a turn (`turn/end` with `reason.kind === completed`), a native WPF card appears in the top-right corner with the chat title and one line of the final answer, plays a short bundled WAV chime, and closes itself after about one second. It does not steal focus.
 - When the agent calls `ask_user_question`, an amber "answer needed" card shows the question and how many options it has, so you know the chat is waiting for you.
 - Settings → General has the master toggle; a 🔔/🔕 bell in the chat header mutes notifications for that chat only and is persisted in the profile.
+- The plugin has its own settings page: **Plugins → Notifications → row `topmost-notify` → chevron**. There you set the display time for each card type separately (completed / answer needed) and the sound per type: the bundled chime or any of your own **MP3/WAV** files, with "Listen" and "Show a sample window" buttons.
 - It deliberately does not queue notifications, cannot be clicked, and stays silent for subagent turns (unless the diagnostics flag is on) — it is a signal, not a dialog.
 
 ![Task-finished notification card](assets/notification.png)
 
 ## Install
 
+From this repository (the npm package is not published yet):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\dsh-topmost-notify\install.ps1
+```
+
+The script copies the package into the `web` profile as a **bundle** (adds it to
+`package.json → dsh.profile.bundles`), removes the older local `turn-notify`
+layout if it exists, and keeps your custom sounds in `sounds/`.
+
+After the npm release the same thing is one command:
+
 ```sh
 dsh plugin --profile web add dsh-topmost-notify
 ```
 
-Then restart `dsh web` (profile UI plugins are loaded at boot) and open the URL it prints. The toggle appears in Settings → General.
+Then restart `dsh web` (profile UI plugins are loaded at boot) and open the URL it prints. The toggle appears in Settings → General, and the plugin gets its own page under **Plugins**. The restart is required once: new bundle rows and host code are not hot-loaded.
 
 ### Requirements
 
@@ -47,15 +60,29 @@ Then restart `dsh web` (profile UI plugins are loaded at boot) and open the URL 
 | Setting | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Master switch; the same value as the Settings → General row |
-| `durationMs` | `1000` | How long the card stays on screen, in ms (300–10000) |
-| `sound` | `true` | Play the bundled WAV chime |
+| `durationMs` | `1000` | How long the "task finished" card stays on screen, in ms (300–10000) |
+| `questionDurationMs` | `1500` | How long the "answer needed" card stays on screen, in ms (300–10000) |
+| `sound` | `true` | Legacy master sound switch, used only when a per-kind field is absent |
+| `completedSoundEnabled` | `true` | Play a sound when a task finishes |
+| `questionSoundEnabled` | `true` | Play a sound when the agent asks a question |
+| `completedSoundFile` | `''` | Absolute path to your own `.mp3`/`.wav`; empty = bundled `chime.wav` |
+| `questionSoundFile` | `''` | Absolute path to your own `.mp3`/`.wav`; empty = bundled `chime-question.wav` |
 | `showSessionTitle` | `true` | Put the chat title on the card |
 | `showAnswerExcerpt` | `true` | Put one flattened line of the final answer on the card |
 | `notifyQuestions` | `true` | Show the amber "answer needed" card when the agent asks a question |
 | `mutedSessions` | `[]` | Chats muted by the header bell (written by the UI) |
 | `notifySubagentTest` | `false` | Diagnostics: also notify for subagent turns |
 
-The toggle is edited in the UI; the other fields live next to the plugin row in the profile's `cordis.patch.yml`:
+Everything above is edited on the plugin's own page: **Plugins → Notifications →
+row `topmost-notify` → chevron**. Durations are shown in seconds; a sound file is
+uploaded straight from the page (`.mp3` or `.wav`, up to 12 MiB) and previewed
+with "Listen" or "Show a sample window" before saving. The Settings → General
+toggle and the chat bell stay as quick controls for `enabled` / `mutedSessions`.
+
+![The plugin's own settings page](assets/plugin-settings.png)
+
+The same values can still be written by hand next to the plugin row in the
+profile's `cordis.patch.yml`:
 
 ```yaml
 - id: topmost-notify
@@ -74,14 +101,18 @@ Settings changes are applied without restarting the host. Updated plugin code is
 ```text
 turn/end (reason=completed, top-level chat)
         │
-        ├─ host half (index.mjs): chat title + one-line answer excerpt
+        ├─ host half (index.mjs): chat title + one-line answer excerpt,
+        │  per-kind duration and sound file
         │
         └─ powershell.exe -File host/notify.ps1 -PayloadBase64 <json>
                     ├─ WPF window: Topmost, ShowActivated=false, auto-close
-                    └─ SoundPlayer: host/chime.wav (when the card appears)
+                    ├─ WAV  → SoundPlayer   (bundled chime or your .wav)
+                    └─ MP3  → WPF MediaPlayer (your .mp3)
 ```
 
-There is no resident helper process: every notification is a short-lived `powershell.exe` (Windows PowerShell 5.1) running `host/notify.ps1` from the package. The payload is a base64-encoded JSON with title, body, duration, sound flag and kind. The script builds the window in code, sets `Topmost`, keeps `ShowActivated=false`, starts the chime when the window is loaded, and runs a dispatcher loop until the close timer fires. Spawning is fire-and-forget: a helper failure is logged and never propagates into the session.
+There is no resident helper process: every notification is a short-lived `powershell.exe` (Windows PowerShell 5.1) running `host/notify.ps1` from the package. The payload is a base64-encoded JSON with title, body, duration, sound (boolean or an absolute file path) and kind. The script builds the window in code, sets `Topmost`, keeps `ShowActivated=false`, starts the sound when the window is loaded, and runs a dispatcher loop until the close timer fires. Spawning is fire-and-forget: a helper failure is logged and never propagates into the session.
+
+The settings page talks to a tiny local HTTP API of the plugin (`/dsh-topmost-notify`): `status`, sound upload, sounds reset, window preview and sound preview. Uploaded files are stored in `sounds/` beside the installed host module; they are local, never sent anywhere and are not removed by a reinstall.
 
 ## Limitations (honest list)
 
@@ -92,25 +123,28 @@ There is no resident helper process: every notification is a short-lived `powers
 - The card is not interactive: no buttons and no way to click through to the chat. It also does not take focus.
 - Subagent turns are silent by design (prevents delegation spam). A top-level turn in any chat — including background and scheduled sessions — does notify.
 - The built-in card captions are Russian today; the chat title and answer excerpt are whatever your chat contains.
-- After installing or updating, restart `dsh web`: new `insert` rows and new ESM code are loaded at boot.
+- Your own sound is played in full (up to ~20 s); the bundled chime keeps the short 350 ms tail after the card closes. MP3 playback needs Windows Media codecs (present on normal Windows 10/11).
+- Uploading stores one custom sound per kind (completed / question); a new upload replaces the previous file of that kind.
+- After installing or updating, restart `dsh web`: new bundle rows and new ESM code are loaded at boot. Settings changes do not need a restart.
 
 ## Security
 
 - The only executable it starts is `powershell.exe` (Windows PowerShell 5.1) with `host/notify.ps1` from this package, `-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass` (the bypass applies to this single invocation). The payload is a base64 JSON argument parsed inside the script.
-- No network requests, no telemetry, no update checks, no credentials, no environment secrets. The WAV sounds are read from the package.
+- No network requests, no telemetry, no update checks, no credentials, no environment secrets. Sounds are read from the package (`host/*.wav`) or from the `sounds/` folder the settings page writes, and no path outside these two folders can be played through the HTTP API.
+- The settings server accepts only `.mp3`/`.wav` uploads (extension and file signature checked), at most 12 MiB, and writes them only into the plugin's own `sounds/` folder. It listens only on the local DSH Web server you already run.
 - Diagnostics: one line per decision is appended to `host/notify-debug.log` next to the installed script (capped at ~256 KiB, truncated on the next write). It contains session ids, the chat title/answer excerpt and the payload — local only. Delete the file at any time.
 
 ## Uninstall
 
-```sh
-dsh plugin --profile web remove dsh-topmost-notify
+From this repository:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\dsh-topmost-notify\install.ps1 -Uninstall
 ```
 
-The package folder (including `host/notify-debug.log`) is removed with it. If you added a `- id: topmost-notify` block to the profile patch by hand, remove that block too.
+After the npm release: `dsh plugin --profile web remove dsh-topmost-notify`.
 
-## Manual install (repository checkout only)
-
-The npm package is the supported route. In a repository checkout there is also `install.ps1`, which copies the package into the profile and adds the same patch row; it is not part of the published tarball.
+The package folder (including `host/notify-debug.log` and your uploaded sounds) is removed with it. If you added a `- id: topmost-notify` config block to the profile patch by hand, remove that block too.
 
 ## Development
 
@@ -118,6 +152,7 @@ From a repository checkout:
 
 ```sh
 node test/index-smoke.mjs
+node test/host-api.test.mjs
 node test/client-smoke.mjs
 npm pack --dry-run
 ```

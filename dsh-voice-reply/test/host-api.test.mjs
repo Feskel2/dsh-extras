@@ -102,6 +102,15 @@ let savedConfigRaw = ''
 
 before(async () => {
   savedConfigRaw = fs.readFileSync(configFile, 'utf8')
+  // The credential file is user-owned and may keep any voice/speed/budget from
+  // a previous run of the live plugin; normalize the UI-owned preferences so
+  // these assertions have a defined starting point.
+  const baseline = JSON.parse(savedConfigRaw)
+  baseline.voice = 'marina'
+  baseline.speed = 1.32
+  baseline.summaryMaxChars = 500
+  baseline.emotion = ''
+  fs.writeFileSync(configFile, `${JSON.stringify(baseline, null, 2)}\n`, 'utf8')
   fs.rmSync(cacheDir, { recursive: true, force: true })
   await new Promise((resolve) => yandex.listen(0, '127.0.0.1', resolve))
   const yandexPort = yandex.address().port
@@ -169,13 +178,20 @@ test('status reports configuration, voices, format and summary limits', async ()
   assert.equal(status, 200)
   assert.equal(json.ok, true)
   assert.equal(json.configured, true)
-  assert.equal(json.voice, 'alena')
+  assert.equal(json.voice, 'marina')
+  assert.equal(json.emotion, '', 'no intonation is stored by default')
+  assert.equal(json.speed, 1.32)
   assert.equal(json.format, 'mp3')
   assert.equal(json.mime, 'audio/mpeg')
   assert.equal(json.summaryMaxChars, 500)
   assert.deepEqual(json.summaryLimits, { min: 100, max: 2000, step: 50 })
   assert.ok(Array.isArray(json.voices) && json.voices.length >= 8)
   assert.ok(json.voices.some((voice) => voice.id === 'alena' && voice.lang === 'ru-RU'))
+  const jane = json.voices.find((voice) => voice.id === 'jane')
+  assert.ok(jane && Array.isArray(jane.emotions) && jane.emotions.includes('good'), 'voices advertise their intonations')
+  const filipp = json.voices.find((voice) => voice.id === 'filipp')
+  assert.equal(filipp.emotions, undefined, 'a voice without intonations has no emotions list')
+  assert.deepEqual(json.emotionOptions, ['neutral', 'whisper', 'friendly'], 'the selected voice exposes its intonations')
 })
 
 test('speak synthesizes once, serves audio, and replays from cache', async () => {
@@ -240,6 +256,61 @@ test('markdown and code are cleaned before synthesis', async () => {
   assert.ok(spoken.includes('Заголовок'))
 })
 
+test('preview synthesizes a short sample with the draft voice, intonation and speed', async () => {
+  const response = await call('/preview', { method: 'POST', body: { voice: 'john', speed: 1.5 } })
+  assert.equal(response.status, 200)
+  assert.equal(response.json.ok, true)
+  assert.equal(response.json.voice, 'john')
+  assert.equal(response.json.lang, 'en-US')
+  assert.equal(response.json.emotion, '')
+  assert.equal(response.json.speed, 1.5)
+  assert.ok(response.json.chunks.length >= 1)
+  assert.equal(mock.calls, 1)
+  const params = new URLSearchParams(mock.requests[0].body)
+  assert.equal(params.get('voice'), 'john')
+  assert.equal(params.get('speed'), '1.5')
+  assert.equal(params.get('lang'), 'en-US')
+  assert.equal(params.get('emotion'), null, 'an empty intonation is not sent')
+  const spoken = params.get('text') ?? ''
+  assert.match(spoken, /Hello/iu, 'the sample is in the voice language')
+  assert.ok(spoken.length < 200, `preview sample is ${spoken.length} chars`)
+  assert.ok(!mock.requests[0].body.includes('folderId'))
+  assert.ok(mock.requests[0].bytes <= 15000)
+
+  const badVoice = await call('/preview', { method: 'POST', body: { voice: 'dasha' } })
+  assert.equal(badVoice.status, 400)
+  assert.equal(badVoice.json.error.code, 'bad-request')
+  const badSpeed = await call('/preview', { method: 'POST', body: { voice: 'alena', speed: 0 } })
+  assert.equal(badSpeed.status, 400)
+  const wrongMethod = await call('/preview')
+  assert.equal(wrongMethod.status, 405)
+})
+
+test('preview applies a supported intonation and rejects an unsupported one', async () => {
+  const good = await call('/preview', { method: 'POST', body: { voice: 'jane', emotion: 'good', speed: 1.42 } })
+  assert.equal(good.status, 200)
+  assert.equal(good.json.voice, 'jane')
+  assert.equal(good.json.emotion, 'good')
+  const params = new URLSearchParams(mock.requests[0].body)
+  assert.equal(params.get('emotion'), 'good')
+  assert.equal(params.get('voice'), 'jane')
+
+  const whisper = await call('/preview', { method: 'POST', body: { voice: 'marina', emotion: 'whisper' } })
+  assert.equal(whisper.status, 200)
+  assert.equal(whisper.json.emotion, 'whisper')
+  const whisperParams = new URLSearchParams(mock.requests.at(-1).body)
+  assert.equal(whisperParams.get('emotion'), 'whisper')
+
+  const wrongEmotion = await call('/preview', { method: 'POST', body: { voice: 'jane', emotion: 'whisper' } })
+  assert.equal(wrongEmotion.status, 400, 'jane does not support whisper')
+  assert.match(wrongEmotion.json.error.hint ?? '', /neutral, good, evil/u)
+  const noEmotionVoice = await call('/preview', { method: 'POST', body: { voice: 'filipp', emotion: 'good' } })
+  assert.equal(noEmotionVoice.status, 400, 'filipp has no intonations at all')
+  assert.match(noEmotionVoice.json.error.hint ?? '', /нет вариантов интонации/iu)
+  const wrongType = await call('/preview', { method: 'POST', body: { voice: 'jane', emotion: 7 } })
+  assert.equal(wrongType.status, 400)
+})
+
 test('401 from Yandex is mapped to an actionable unauthorized error', async () => {
   mock.mode = '401'
   const { status, json } = await call('/speak', { method: 'POST', body: { text: 'Уникальный текст для ошибки 401.' } })
@@ -297,6 +368,30 @@ test('preferences persist autoSpeak and summaryMaxChars and are reflected by sta
   assert.equal(persisted.summaryMaxChars, 300)
   assert.equal(typeof persisted.apiKey, 'string', 'credentials must survive a preferences write')
 
+  const voice = await call('/preferences', { method: 'POST', body: { voice: 'alena', speed: 1.5 } })
+  assert.equal(voice.status, 200)
+  assert.equal(voice.json.voice, 'alena')
+  assert.equal(voice.json.lang, 'ru-RU')
+  assert.equal(voice.json.speed, 1.5)
+  const statusVoice = await call('/status')
+  assert.equal(statusVoice.json.voice, 'alena')
+  assert.equal(statusVoice.json.speed, 1.5)
+  const persistedVoice = JSON.parse(fs.readFileSync(configFile, 'utf8'))
+  assert.equal(persistedVoice.voice, 'alena')
+  assert.equal(persistedVoice.speed, 1.5)
+
+  const emotion = await call('/preferences', { method: 'POST', body: { voice: 'jane', emotion: 'good' } })
+  assert.equal(emotion.status, 200)
+  assert.equal(emotion.json.voice, 'jane')
+  assert.equal(emotion.json.emotion, 'good')
+  const statusEmotion = await call('/status')
+  assert.equal(statusEmotion.json.emotion, 'good')
+  assert.deepEqual(statusEmotion.json.emotionOptions, ['neutral', 'good', 'evil'])
+  const persistedEmotion = JSON.parse(fs.readFileSync(configFile, 'utf8'))
+  assert.equal(persistedEmotion.voice, 'jane')
+  assert.equal(persistedEmotion.emotion, 'good')
+  assert.equal(typeof persistedEmotion.apiKey, 'string', 'credentials must survive an intonation write')
+
   const invalid = await call('/preferences', { method: 'POST', body: { autoSpeak: 'yes' } })
   assert.equal(invalid.status, 400)
   const tooSmall = await call('/preferences', { method: 'POST', body: { summaryMaxChars: 99 } })
@@ -305,12 +400,51 @@ test('preferences persist autoSpeak and summaryMaxChars and are reflected by sta
   assert.equal(tooBig.status, 400)
   const notNumber = await call('/preferences', { method: 'POST', body: { summaryMaxChars: 'abc' } })
   assert.equal(notNumber.status, 400)
+  const badVoice = await call('/preferences', { method: 'POST', body: { voice: 'dasha' } })
+  assert.equal(badVoice.status, 400, 'v3-only voices are rejected')
+  const badSpeed = await call('/preferences', { method: 'POST', body: { speed: 5 } })
+  assert.equal(badSpeed.status, 400)
+  const badEmotion = await call('/preferences', { method: 'POST', body: { emotion: 'whisper' } })
+  assert.equal(badEmotion.status, 400, 'jane does not support whisper')
+  assert.match(badEmotion.json.error.hint ?? '', /neutral, good, evil/u)
+  const unknownEmotion = await call('/preferences', { method: 'POST', body: { emotion: 'angry' } })
+  assert.equal(unknownEmotion.status, 400)
+  const wrongEmotionType = await call('/preferences', { method: 'POST', body: { emotion: 3 } })
+  assert.equal(wrongEmotionType.status, 400)
   const wrongMethod = await call('/preferences')
   assert.equal(wrongMethod.status, 405)
 
-  const restored = await call('/preferences', { method: 'POST', body: { summaryMaxChars: 500 } })
+  const restored = await call('/preferences', { method: 'POST', body: { summaryMaxChars: 500, voice: 'marina', emotion: '', speed: 1.32 } })
   assert.equal(restored.status, 200)
   assert.equal(restored.json.summaryMaxChars, 500)
+  assert.equal(restored.json.voice, 'marina')
+  assert.equal(restored.json.emotion, '')
+  assert.equal(restored.json.speed, 1.32)
+})
+
+test('switching to a voice without intonations clears the effective emotion', async () => {
+  const withEmotion = await call('/preferences', { method: 'POST', body: { voice: 'marina', emotion: 'friendly' } })
+  assert.equal(withEmotion.status, 200)
+  assert.equal(withEmotion.json.emotion, 'friendly')
+
+  const switched = await call('/preferences', { method: 'POST', body: { voice: 'filipp' } })
+  assert.equal(switched.status, 200)
+  assert.equal(switched.json.voice, 'filipp')
+  assert.equal(switched.json.emotion, '', 'the stale intonation is not sent for a voice without emotions')
+  const statusSwitched = await call('/status')
+  assert.equal(statusSwitched.json.emotion, '')
+  assert.deepEqual(statusSwitched.json.emotionOptions, [])
+
+  // Switching back restores the stored intonation: it was never destroyed.
+  const back = await call('/preferences', { method: 'POST', body: { voice: 'marina' } })
+  assert.equal(back.status, 200)
+  assert.equal(back.json.emotion, 'friendly')
+
+  await call('/preferences', { method: 'POST', body: { emotion: '' } })
+  const cleared = await call('/status')
+  assert.equal(cleared.json.emotion, '')
+  const persisted = JSON.parse(fs.readFileSync(configFile, 'utf8'))
+  assert.equal(persisted.emotion, '')
 })
 
 test('a custom summary budget shortens the spoken text further', async () => {

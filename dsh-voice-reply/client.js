@@ -48,6 +48,15 @@ window.__ModuleLoader__.load({
 		const DEFAULT_SUMMARY_LIMITS = Object.freeze({ min: 100, max: 2000, step: 50 });
 		/** Chars-per-second estimate used only for the settings-page hint. */
 		const SPEECH_CHARS_PER_SECOND = 15;
+		/** Fallback voice/speed until the Host status answers. */
+		const DEFAULT_VOICE = 'marina';
+		const DEFAULT_SPEED = 1.32;
+		/** Default intonation: an empty string means "let the voice decide". */
+		const DEFAULT_EMOTION = '';
+		/** Speed control bounds (the TTS API accepts 0.1–3.0, two decimals). */
+		const SPEED_LIMITS = Object.freeze({ min: 0.1, max: 3, step: 0.01 });
+		/** Prefix of the player message id used for a settings-page voice preview. */
+		const PREVIEW_MESSAGE_PREFIX = 'voice-preview:';
 
 		/* ------------------------------------------------------------------ */
 		/* Locale dictionaries                                                */
@@ -88,7 +97,22 @@ window.__ModuleLoader__.load({
 			'pluginSettings.autoSpeak.title': 'Speak automatically',
 			'pluginSettings.autoSpeak.description': 'Start the voice right after an answer finishes.',
 			'pluginSettings.voice': 'Voice',
+			'pluginSettings.voice.description': 'The Yandex SpeechKit voice used for answers. Press “Preview” to hear a short sample with the current voice, intonation and speed.',
+			'pluginSettings.emotion': 'Intonation',
+			'pluginSettings.emotion.description': 'Voice colouring: neutral, cheerful, angry, whisper or friendly. The available set depends on the selected voice; press “Preview” to hear the chosen intonation.',
+			'pluginSettings.emotion.default': 'Voice default',
+			'pluginSettings.emotion.unsupported': 'This voice offers no selectable intonations — it always sounds neutral.',
+			'pluginSettings.emotionValue.neutral': 'Neutral',
+			'pluginSettings.emotionValue.good': 'Cheerful',
+			'pluginSettings.emotionValue.evil': 'Angry',
+			'pluginSettings.emotionValue.whisper': 'Whisper',
+			'pluginSettings.emotionValue.friendly': 'Friendly',
 			'pluginSettings.speed': 'Speed',
+			'pluginSettings.speed.description': 'Speech rate from 0.1 to 3.0. 1.32 is the current default.',
+			'pluginSettings.preview': 'Preview',
+			'pluginSettings.previewStop': 'Stop',
+			'pluginSettings.previewLoading': 'Preparing sample…',
+			'pluginSettings.previewError': 'Could not play the voice sample',
 			'pluginSettings.range': 'Allowed range: 100 to 2000 characters.',
 			'pluginSettings.unsaved': 'Unsaved changes',
 		};
@@ -128,7 +152,22 @@ window.__ModuleLoader__.load({
 			'pluginSettings.autoSpeak.title': 'Озвучивать автоматически',
 			'pluginSettings.autoSpeak.description': 'Включать голос сразу после завершения ответа.',
 			'pluginSettings.voice': 'Голос',
+			'pluginSettings.voice.description': 'Голос Yandex SpeechKit для ответов. Нажмите «Прослушать», чтобы услышать короткий пример с текущими голосом, интонацией и скоростью.',
+			'pluginSettings.emotion': 'Интонация',
+			'pluginSettings.emotion.description': 'Окраска голоса: нейтральная, радостная, злая, шёпот или дружелюбная. Набор зависит от выбранного голоса; нажмите «Прослушать», чтобы оценить выбранную интонацию.',
+			'pluginSettings.emotion.default': 'Как у голоса',
+			'pluginSettings.emotion.unsupported': 'У этого голоса нет вариантов интонации — он звучит нейтрально.',
+			'pluginSettings.emotionValue.neutral': 'Нейтральная',
+			'pluginSettings.emotionValue.good': 'Радостная',
+			'pluginSettings.emotionValue.evil': 'Злая',
+			'pluginSettings.emotionValue.whisper': 'Шёпот',
+			'pluginSettings.emotionValue.friendly': 'Дружелюбная',
 			'pluginSettings.speed': 'Скорость',
+			'pluginSettings.speed.description': 'Скорость речи от 0.1 до 3.0. 1.32 — текущее значение по умолчанию.',
+			'pluginSettings.preview': 'Прослушать',
+			'pluginSettings.previewStop': 'Остановить',
+			'pluginSettings.previewLoading': 'Готовлю пример…',
+			'pluginSettings.previewError': 'Не удалось прослушать пример',
 			'pluginSettings.range': 'Допустимо от 100 до 2000 символов.',
 			'pluginSettings.unsaved': 'Есть несохранённые изменения',
 		};
@@ -168,7 +207,22 @@ window.__ModuleLoader__.load({
 			'pluginSettings.autoSpeak.title': '自动朗读',
 			'pluginSettings.autoSpeak.description': '回复结束后立即开始朗读。',
 			'pluginSettings.voice': '声音',
+			'pluginSettings.voice.description': '用于朗读回复的 Yandex SpeechKit 声音。点击“试听”可听到当前声音、语调和语速的短示例。',
+			'pluginSettings.emotion': '语调',
+			'pluginSettings.emotion.description': '声音的情绪色彩：中性、欢快、愤怒、低语或友好。可选范围取决于所选声音；点击“试听”即可听到所选语调。',
+			'pluginSettings.emotion.default': '声音默认',
+			'pluginSettings.emotion.unsupported': '此声音没有可选语调，始终为中性。',
+			'pluginSettings.emotionValue.neutral': '中性',
+			'pluginSettings.emotionValue.good': '欢快',
+			'pluginSettings.emotionValue.evil': '愤怒',
+			'pluginSettings.emotionValue.whisper': '低语',
+			'pluginSettings.emotionValue.friendly': '友好',
 			'pluginSettings.speed': '语速',
+			'pluginSettings.speed.description': '语速范围 0.1–3.0。当前默认值为 1.32。',
+			'pluginSettings.preview': '试听',
+			'pluginSettings.previewStop': '停止',
+			'pluginSettings.previewLoading': '正在准备示例…',
+			'pluginSettings.previewError': '无法播放试听示例',
 			'pluginSettings.range': '允许范围：100 到 2000 个字符。',
 			'pluginSettings.unsaved': '有未保存的更改',
 		};
@@ -560,6 +614,62 @@ window.__ModuleLoader__.load({
 			}
 
 			/**
+			 * Turn one non-2xx Host answer into an Error carrying a user-facing
+			 * message and optional hint.
+			 * @param {{ status: number, payload: any }} result - Host answer.
+			 * @returns {Error} user-facing error.
+			 */
+			function hostError(result) {
+				const failure = result.payload && typeof result.payload === 'object' ? result.payload.error : null;
+				const code = failure && typeof failure.code === 'string' ? failure.code : '';
+				const hostMessage = failure && typeof failure.message === 'string' ? failure.message : '';
+				const message = hostMessage !== '' ? hostMessage : code === 'not-configured' ? localize('error.notConfigured') : localize('error.generic');
+				const hint = failure && typeof failure.hint === 'string' ? failure.hint : null;
+				const error = new Error(message);
+				error.userMessage = message;
+				error.userHint = hint;
+				return error;
+			}
+
+			/**
+			 * Validate the playable chunk descriptors of one speak/preview answer.
+			 * @param {any} payload - Host JSON body.
+			 * @returns {Array<{ url: string }>} playable chunks.
+			 * @throws {Error} when the answer carries no playable audio.
+			 */
+			function playableChunks(payload) {
+				const chunks = payload && Array.isArray(payload.chunks) ? payload.chunks : [];
+				const playable = [];
+				for (const chunk of chunks) {
+					if (!chunk || typeof chunk !== 'object') continue;
+					if (typeof chunk.url !== 'string' || chunk.url === '') continue;
+					playable.push({ url: chunk.url });
+				}
+				if (!payload || payload.ok !== true || playable.length === 0) {
+					const message = localize('error.generic');
+					const error = new Error(message);
+					error.userMessage = message;
+					error.userHint = null;
+					throw error;
+				}
+				return playable;
+			}
+
+			/**
+			 * Remember one chunk list in the bounded per-message cache.
+			 * @param {string} key - message identity.
+			 * @param {object} record - cache record.
+			 * @returns {void}
+			 */
+			function rememberChunks(key, record) {
+				if (chunkCache.size >= CHUNK_CACHE_LIMIT) {
+					const first = chunkCache.keys().next();
+					if (!first.done) chunkCache.delete(first.value);
+				}
+				chunkCache.set(key, record);
+			}
+
+			/**
 			 * POST the text for synthesis, reusing the per-message chunk cache.
 			 * @param {string} messageId - durable answer identity.
 			 * @param {string} text - answer text.
@@ -575,37 +685,43 @@ window.__ModuleLoader__.load({
 					body: JSON.stringify({ text, messageId }),
 					signal: controller !== null ? controller.signal : undefined,
 				});
-				if (!result.ok) {
-					const failure = result.payload && typeof result.payload === 'object' ? result.payload.error : null;
-					const code = failure && typeof failure.code === 'string' ? failure.code : '';
-					const hostMessage = failure && typeof failure.message === 'string' ? failure.message : '';
-					const message = hostMessage !== '' ? hostMessage : code === 'not-configured' ? localize('error.notConfigured') : localize('error.generic');
-					const hint = failure && typeof failure.hint === 'string' ? failure.hint : null;
-					const error = new Error(message);
-					error.userMessage = message;
-					error.userHint = hint;
-					throw error;
+				if (!result.ok) throw hostError(result);
+				const playable = playableChunks(result.payload);
+				rememberChunks(messageId, { text, chunks: playable });
+				return playable;
+			}
+
+			/**
+			 * Request the short voice sample for the drafts on the settings page,
+			 * reusing the cached sample for the same voice/emotion/speed triple.
+			 * @param {string} messageId - preview identity.
+			 * @param {string} voice - voice id.
+			 * @param {string} emotion - Yandex `emotion` ('' for the voice default).
+			 * @param {number|null} speed - speech rate.
+			 * @returns {Promise<Array<{ url: string }>>} chunk URLs in playback order.
+			 */
+			async function resolvePreviewChunks(messageId, voice, emotion, speed) {
+				const cached = chunkCache.get(messageId);
+				if (
+					cached !== undefined &&
+					cached.preview === true &&
+					cached.voice === voice &&
+					cached.emotion === emotion &&
+					cached.speed === speed &&
+					cached.chunks.length > 0
+				) {
+					return cached.chunks;
 				}
-				const payload = result.payload;
-				const chunks = payload && Array.isArray(payload.chunks) ? payload.chunks : [];
-				const playable = [];
-				for (const chunk of chunks) {
-					if (!chunk || typeof chunk !== 'object') continue;
-					if (typeof chunk.url !== 'string' || chunk.url === '') continue;
-					playable.push({ url: chunk.url });
-				}
-				if (!payload || payload.ok !== true || playable.length === 0) {
-					const message = localize('error.generic');
-					const error = new Error(message);
-					error.userMessage = message;
-					error.userHint = null;
-					throw error;
-				}
-				if (chunkCache.size >= CHUNK_CACHE_LIMIT) {
-					const first = chunkCache.keys().next();
-					if (!first.done) chunkCache.delete(first.value);
-				}
-				chunkCache.set(messageId, { text, chunks: playable });
+				const result = await requestJson(`${ROUTE}/preview`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json', accept: 'application/json' },
+					credentials: 'same-origin',
+					body: JSON.stringify({ voice, emotion, speed }),
+					signal: controller !== null ? controller.signal : undefined,
+				});
+				if (!result.ok) throw hostError(result);
+				const playable = playableChunks(result.payload);
+				rememberChunks(messageId, { preview: true, voice, emotion, speed, text: '', chunks: playable });
 				return playable;
 			}
 
@@ -768,6 +884,75 @@ window.__ModuleLoader__.load({
 			}
 
 			/**
+			 * Play a short voice sample for the settings page drafts. Clicking the
+			 * same preview again stops it. The sample never claims or caches an
+			 * assistant answer and uses its own message identity.
+			 * @param {{ voice?: unknown, emotion?: unknown, speed?: unknown }} request - draft voice/intensity/speed.
+			 * @returns {Promise<void>} settlement after playback or failure.
+			 */
+			async function preview(request) {
+				if (disposed) return;
+				const voice = request && typeof request.voice === 'string' ? request.voice : '';
+				if (voice === '') return;
+				const emotion = request && typeof request.emotion === 'string' ? request.emotion : '';
+				const speed =
+					request && request.speed !== undefined && request.speed !== null && Number.isFinite(Number(request.speed))
+						? Math.round(Number(request.speed) * 100) / 100
+						: null;
+				const messageId = `${PREVIEW_MESSAGE_PREFIX}${voice}:${emotion}:${speed === null ? '' : speed}`;
+				if (state.messageId === messageId && (state.status === 'loading' || state.status === 'playing')) {
+					stop();
+					return;
+				}
+				stopInternal();
+				const run = generation;
+				publish(Object.assign(emptyPlayerState(), { status: 'loading', messageId }));
+				try {
+					let statusPayload = null;
+					try {
+						statusPayload = await readStatus();
+					} catch (error) {
+						report(error);
+						fail(run, 'error', localize('error.generic'), null);
+						return;
+					}
+					if (!isCurrent(run)) return;
+					if (statusPayload.configured === false) {
+						fail(run, 'error', localize('error.notConfigured'), typeof statusPayload.error === 'string' ? statusPayload.error : null);
+						return;
+					}
+					controller = typeof AbortController === 'function' ? new AbortController() : null;
+					let chunks = [];
+					try {
+						chunks = await resolvePreviewChunks(messageId, voice, emotion, speed);
+					} catch (error) {
+						if (!isCurrent(run)) return;
+						if (isAbortError(error)) return;
+						fail(
+							run,
+							'error',
+							error && error.userMessage ? error.userMessage : localize('pluginSettings.previewError'),
+							error && error.userHint ? error.userHint : null,
+						);
+						return;
+					}
+					if (!isCurrent(run)) return;
+					publish({ status: 'playing', chunkCount: chunks.length, chunkIndex: 0 });
+					for (let index = 0; index < chunks.length; index += 1) {
+						if (!isCurrent(run)) return;
+						publish({ chunkIndex: index });
+						const outcome = await playChunk(chunks[index].url, run);
+						if (!isCurrent(run)) return;
+						if (outcome !== 'ended') return;
+					}
+					if (isCurrent(run)) publish(emptyPlayerState());
+				} catch (error) {
+					report(error);
+					if (isCurrent(run) && !isAbortError(error)) fail(run, 'error', localize('pluginSettings.previewError'), null);
+				}
+			}
+
+			/**
 			 * Toggle one answer: stop it when it is the current playback, else speak.
 			 * @param {{ messageId?: unknown, text?: unknown }} request - answer.
 			 * @returns {void}
@@ -805,6 +990,7 @@ window.__ModuleLoader__.load({
 					return state;
 				},
 				speak,
+				preview,
 				toggle,
 				stop,
 				/**
@@ -1030,8 +1216,11 @@ window.__ModuleLoader__.load({
 				enabled: true,
 				summaryMaxChars: DEFAULT_SUMMARY_MAX_CHARS,
 				summaryLimits: DEFAULT_SUMMARY_LIMITS,
-				voice: null,
-				speed: null,
+				voices: [],
+				voice: DEFAULT_VOICE,
+				lang: null,
+				emotion: DEFAULT_EMOTION,
+				speed: DEFAULT_SPEED,
 				format: null,
 				busy: false,
 				error: null,
@@ -1050,6 +1239,38 @@ window.__ModuleLoader__.load({
 			const min = limits && Number.isFinite(limits.min) ? limits.min : DEFAULT_SUMMARY_LIMITS.min;
 			const max = limits && Number.isFinite(limits.max) ? limits.max : DEFAULT_SUMMARY_LIMITS.max;
 			return Math.round(Math.min(max, Math.max(min, number)));
+		}
+
+		/**
+		 * Intonations the Host catalogue lists for one voice.
+		 * @param {Array<{ id: string, emotions?: string[] }>} voices - voice catalogue.
+		 * @param {string} voiceId - voice id.
+		 * @returns {string[]} supported Yandex `emotion` values (empty when none).
+		 */
+		function emotionsForVoice(voices, voiceId) {
+			try {
+				const entry = Array.isArray(voices) ? voices.find((voice) => voice && voice.id === voiceId) : undefined;
+				return entry && Array.isArray(entry.emotions) ? entry.emotions : [];
+			} catch (error) {
+				report(error);
+				return [];
+			}
+		}
+
+		/**
+		 * Effective intonation shown in the selector. The accepted value may be
+		 * empty (the voice default), which is presented as `neutral` when the
+		 * voice supports explicit emotions so the dropdown always has a value.
+		 * @param {string} emotion - accepted/draft emotion.
+		 * @param {string[]} supported - emotions of the current voice.
+		 * @returns {string} value to keep in state and show in the selector.
+		 */
+		function normalizeEmotion(emotion, supported) {
+			const list = Array.isArray(supported) ? supported : [];
+			if (list.length === 0) return '';
+			if (list.includes(emotion)) return emotion;
+			if (list.includes('neutral')) return 'neutral';
+			return list[0];
 		}
 
 		/**
@@ -1133,8 +1354,23 @@ window.__ModuleLoader__.load({
 							max: Number.isFinite(Number(limits.max)) ? Number(limits.max) : DEFAULT_SUMMARY_LIMITS.max,
 							step: Number.isFinite(Number(limits.step)) ? Number(limits.step) : DEFAULT_SUMMARY_LIMITS.step,
 						},
-						voice: typeof payload.voice === 'string' ? payload.voice : null,
-						speed: Number.isFinite(Number(payload.speed)) ? Number(payload.speed) : null,
+						voice: typeof payload.voice === 'string' ? payload.voice : DEFAULT_VOICE,
+						lang: typeof payload.lang === 'string' ? payload.lang : null,
+						emotion: typeof payload.emotion === 'string' ? payload.emotion : DEFAULT_EMOTION,
+						voices: Array.isArray(payload.voices)
+							? payload.voices
+									.filter((entry) => entry !== null && typeof entry === 'object' && typeof entry.id === 'string')
+									.map((entry) => ({
+										id: entry.id,
+										label: typeof entry.label === 'string' ? entry.label : entry.id,
+										lang: typeof entry.lang === 'string' ? entry.lang : '',
+										gender: typeof entry.gender === 'string' ? entry.gender : '',
+										emotions: Array.isArray(entry.emotions)
+											? entry.emotions.filter((item) => typeof item === 'string')
+											: [],
+									}))
+							: [],
+						speed: Number.isFinite(Number(payload.speed)) ? Number(payload.speed) : DEFAULT_SPEED,
 						format: typeof payload.format === 'string' ? payload.format : null,
 						error: null,
 					});
@@ -1147,7 +1383,7 @@ window.__ModuleLoader__.load({
 
 			/**
 			 * Persist one or more UI-owned preferences and mirror the Host's answer.
-			 * @param {{ autoSpeak?: boolean, summaryMaxChars?: number }} patch - changed fields.
+			 * @param {{ autoSpeak?: boolean, summaryMaxChars?: number, voice?: string, emotion?: string, speed?: number }} patch - changed fields.
 			 * @returns {Promise<boolean>} true when the Host accepted the write.
 			 */
 			async function savePreferences(patch) {
@@ -1156,6 +1392,9 @@ window.__ModuleLoader__.load({
 				if (patch !== null && typeof patch === 'object') {
 					if (typeof patch.autoSpeak === 'boolean') body.autoSpeak = patch.autoSpeak;
 					if (patch.summaryMaxChars !== undefined) body.summaryMaxChars = clampSummaryChars(patch.summaryMaxChars, state.summaryLimits);
+					if (typeof patch.voice === 'string' && patch.voice !== '') body.voice = patch.voice;
+					if (typeof patch.emotion === 'string') body.emotion = patch.emotion;
+					if (patch.speed !== undefined && Number.isFinite(Number(patch.speed))) body.speed = Number(patch.speed);
 				}
 				if (Object.keys(body).length === 0) return false;
 				publish({ busy: true, error: null });
@@ -1181,6 +1420,10 @@ window.__ModuleLoader__.load({
 					if (Number.isFinite(Number(payload.summaryMaxChars))) {
 						next.summaryMaxChars = clampSummaryChars(payload.summaryMaxChars, state.summaryLimits);
 					}
+					if (typeof payload.voice === 'string' && payload.voice !== '') next.voice = payload.voice;
+					if (typeof payload.lang === 'string') next.lang = payload.lang;
+					if (typeof payload.emotion === 'string') next.emotion = payload.emotion;
+					if (Number.isFinite(Number(payload.speed))) next.speed = Number(payload.speed);
 					publish(next);
 					return true;
 				} catch (error) {
@@ -1614,6 +1857,46 @@ window.__ModuleLoader__.load({
 			lineHeight: '18px',
 		});
 
+		/** Voice dropdown of the plugin settings page. */
+		const SELECT_STYLE = Object.freeze({
+			background: 'transparent',
+			border: '.5px solid var(--dsw-alias-border-l3)',
+			borderRadius: 'var(--dsw-radius-sm)',
+			boxSizing: 'border-box',
+			color: 'var(--dsw-alias-label-primary)',
+			font: 'inherit',
+			fontSize: 13,
+			height: 34,
+			maxWidth: 380,
+			padding: '0 10px',
+			width: '100%',
+		});
+
+		/** Numeric speed readout beside the slider. */
+		const SPEED_VALUE_STYLE = Object.freeze({
+			color: 'var(--dsw-alias-label-secondary)',
+			fontSize: 13,
+			fontVariantNumeric: 'tabular-nums',
+			minWidth: 54,
+			textAlign: 'right',
+		});
+
+		/** Outline button that plays the voice sample. */
+		const PREVIEW_BUTTON_STYLE = Object.freeze({
+			alignItems: 'center',
+			background: 'transparent',
+			border: '.5px solid var(--dsw-alias-border-l3)',
+			borderRadius: 'var(--dsw-radius-sm)',
+			color: 'var(--dsw-alias-label-secondary)',
+			cursor: 'pointer',
+			display: 'inline-flex',
+			flex: '0 0 auto',
+			font: 'inherit',
+			fontSize: 12,
+			height: 32,
+			padding: '0 12px',
+		});
+
 		/* ------------------------------------------------------------------ */
 		/* Slot 1: per-message replay action                                  */
 		/* ------------------------------------------------------------------ */
@@ -2029,9 +2312,11 @@ window.__ModuleLoader__.load({
 		 * @returns {any} the settings form, or null while the store is unusable.
 		 */
 		function renderVoiceReplyPluginSettingsPage(props) {
-			const { settings: settingsRef, t } = props || {};
+			const { settings: settingsRef, player: playerRef, t } = props || {};
 			if (!settingsRef || typeof settingsRef.subscribe !== 'function' || typeof settingsRef.getState !== 'function') return null;
+			if (!playerRef || typeof playerRef.subscribe !== 'function' || typeof playerRef.getState !== 'function') return null;
 			const settingsState = useSyncExternalStore(settingsRef.subscribe, settingsRef.getState);
+			const playerState = useSyncExternalStore(playerRef.subscribe, playerRef.getState);
 			const state = settingsState || {};
 			const status = typeof state.status === 'string' ? state.status : 'idle';
 			const ready = status === 'ready';
@@ -2044,11 +2329,26 @@ window.__ModuleLoader__.load({
 			const max = Number.isFinite(Number(limits.max)) ? Number(limits.max) : DEFAULT_SUMMARY_LIMITS.max;
 			const step = Number.isFinite(Number(limits.step)) ? Number(limits.step) : DEFAULT_SUMMARY_LIMITS.step;
 			const accepted = Number.isFinite(state.summaryMaxChars) ? state.summaryMaxChars : DEFAULT_SUMMARY_MAX_CHARS;
+			const acceptedVoice = typeof state.voice === 'string' && state.voice !== '' ? state.voice : DEFAULT_VOICE;
+			const acceptedEmotion = typeof state.emotion === 'string' ? state.emotion : DEFAULT_EMOTION;
+			const acceptedSpeed = Number.isFinite(state.speed) ? state.speed : DEFAULT_SPEED;
+			const voices =
+				Array.isArray(state.voices) && state.voices.length > 0
+					? state.voices
+					: [{ id: acceptedVoice, label: acceptedVoice, emotions: [] }];
 			const autoSpeak = ready && state.autoSpeak === true;
 			const [draft, setDraft] = useState(String(accepted));
+			const [draftVoice, setDraftVoice] = useState(acceptedVoice);
+			const [draftEmotion, setDraftEmotion] = useState(() =>
+				normalizeEmotion(acceptedEmotion, emotionsForVoice(voices, acceptedVoice)),
+			);
+			const [draftSpeed, setDraftSpeed] = useState(acceptedSpeed);
 			const [notice, setNotice] = useState(null);
 			const mountedRef = useRef(true);
 			const acceptedRef = useRef(accepted);
+			const acceptedVoiceRef = useRef(acceptedVoice);
+			const acceptedEmotionRef = useRef(normalizeEmotion(acceptedEmotion, emotionsForVoice(voices, acceptedVoice)));
+			const acceptedSpeedRef = useRef(acceptedSpeed);
 
 			useEffect(() => {
 				mountedRef.current = true;
@@ -2072,6 +2372,22 @@ window.__ModuleLoader__.load({
 				setDraft(String(accepted));
 			}, [accepted]);
 			useEffect(() => {
+				if (acceptedVoiceRef.current === acceptedVoice) return;
+				acceptedVoiceRef.current = acceptedVoice;
+				setDraftVoice(acceptedVoice);
+			}, [acceptedVoice]);
+			useEffect(() => {
+				const nextEmotion = normalizeEmotion(acceptedEmotion, emotionsForVoice(voices, acceptedVoice));
+				if (acceptedEmotionRef.current === nextEmotion) return;
+				acceptedEmotionRef.current = nextEmotion;
+				setDraftEmotion(nextEmotion);
+			}, [acceptedEmotion, acceptedVoice, voices]);
+			useEffect(() => {
+				if (acceptedSpeedRef.current === acceptedSpeed) return;
+				acceptedSpeedRef.current = acceptedSpeed;
+				setDraftSpeed(acceptedSpeed);
+			}, [acceptedSpeed]);
+			useEffect(() => {
 				if (notice !== 'saved') return undefined;
 				const timer = setTimeout(() => {
 					if (mountedRef.current) setNotice(null);
@@ -2083,9 +2399,32 @@ window.__ModuleLoader__.load({
 			const draftNumber = Number(draftText);
 			const valid = draftText !== '' && Number.isFinite(draftNumber) && draftNumber >= min && draftNumber <= max;
 			const effective = valid ? Math.round(draftNumber) : accepted;
-			const dirty = ready && valid && effective !== accepted;
+			const acceptedEmotionValue = normalizeEmotion(acceptedEmotion, emotionsForVoice(voices, acceptedVoice));
+			const draftEmotionSupported = emotionsForVoice(voices, draftVoice);
+			const draftEmotionValue = normalizeEmotion(draftEmotion, draftEmotionSupported);
+			const voiceDirty = ready && draftVoice !== acceptedVoice;
+			const emotionDirty = ready && draftEmotionValue !== acceptedEmotionValue;
+			const speedDirty = ready && Math.abs(draftSpeed - acceptedSpeed) > 1e-9;
+			const dirty = ready && valid && (effective !== accepted || voiceDirty || emotionDirty || speedDirty);
 			const seconds = Math.max(3, Math.round(effective / SPEECH_CHARS_PER_SECOND));
 			const disabled = !ready || busy;
+			const previewSpeed = Math.round(draftSpeed * 100) / 100;
+			const previewMessageId = `${PREVIEW_MESSAGE_PREFIX}${draftVoice}:${draftEmotionValue}:${previewSpeed}`;
+			const previewStatus =
+				playerState !== null && playerState !== undefined && playerState.messageId === previewMessageId && typeof playerState.status === 'string'
+					? playerState.status
+					: 'idle';
+			const previewing = previewStatus === 'loading' || previewStatus === 'playing';
+			const previewFailed = previewStatus === 'error';
+			const previewLabel = previewStatus === 'loading'
+				? translate(t, 'pluginSettings.previewLoading')
+				: previewing
+					? translate(t, 'pluginSettings.previewStop')
+					: translate(t, 'pluginSettings.preview');
+			const previewErrorText =
+				previewFailed && playerState && typeof playerState.error === 'string' && playerState.error !== ''
+					? playerState.error
+					: translate(t, 'pluginSettings.previewError');
 
 			/**
 			 * Store one draft change and clear the previous outcome notice.
@@ -2114,20 +2453,74 @@ window.__ModuleLoader__.load({
 				},
 				[changeDraft],
 			);
+			const onVoiceChange = useCallback(
+				(event) => {
+					setNotice(null);
+					const value = event && event.target ? String(event.target.value) : '';
+					if (value === '') return;
+					setDraftVoice(value);
+					// An intonation is voice-specific: keep the draft only when the
+					// newly selected voice supports it, otherwise fall back to its default.
+					setDraftEmotion((current) => normalizeEmotion(current, emotionsForVoice(voices, value)));
+				},
+				[voices],
+			);
+			const onEmotionChange = useCallback(
+				(event) => {
+					setNotice(null);
+					const value = event && event.target ? String(event.target.value) : '';
+					setDraftEmotion(value);
+				},
+				[],
+			);
+			const onSpeedChange = useCallback(
+				(event) => {
+					setNotice(null);
+					const value = Number(event && event.target ? event.target.value : NaN);
+					if (Number.isFinite(value)) setDraftSpeed(Math.round(value * 100) / 100);
+				},
+				[],
+			);
+			const onSpeedPreset = useCallback((value) => {
+				setNotice(null);
+				setDraftSpeed(Math.round(Number(value) * 100) / 100);
+			}, []);
+			const onPreview = useCallback(() => {
+				if (disabled) return;
+				let pending = null;
+				try {
+					pending = playerRef.preview({ voice: draftVoice, emotion: draftEmotionValue, speed: previewSpeed });
+				} catch (error) {
+					report(error);
+					pending = null;
+				}
+				if (pending && typeof pending.catch === 'function') pending.catch(report);
+			}, [disabled, draftEmotionValue, draftVoice, playerRef, previewSpeed]);
 			const onReset = useCallback(() => {
 				setNotice(null);
 				setDraft(String(accepted));
-			}, [accepted]);
+				setDraftVoice(acceptedVoice);
+				setDraftEmotion(acceptedEmotionValue);
+				setDraftSpeed(acceptedSpeed);
+			}, [accepted, acceptedEmotionValue, acceptedSpeed, acceptedVoice]);
 			const onSave = useCallback(() => {
 				if (!ready || busy || !valid) return;
-				if (effective === accepted) {
+				const patch = {};
+				if (effective !== accepted) patch.summaryMaxChars = effective;
+				if (draftVoice !== acceptedVoice) patch.voice = draftVoice;
+				if (draftEmotionValue !== acceptedEmotionValue) patch.emotion = draftEmotionValue;
+				if (Math.abs(draftSpeed - acceptedSpeed) > 1e-9) patch.speed = previewSpeed;
+				if (Object.keys(patch).length === 0) {
 					setDraft(String(accepted));
+					setDraftVoice(acceptedVoice);
+					setDraftEmotion(acceptedEmotionValue);
+					setDraftSpeed(acceptedSpeed);
 					return;
 				}
 				setNotice(null);
 				let pending = null;
 				try {
-					pending = settingsRef.setSummaryMaxChars(effective);
+					pending = settingsRef.savePreferences(patch);
 				} catch (error) {
 					report(error);
 					pending = null;
@@ -2140,7 +2533,7 @@ window.__ModuleLoader__.load({
 						report(error);
 						if (mountedRef.current) setNotice('failed');
 					});
-			}, [accepted, busy, effective, ready, settingsRef, valid]);
+			}, [accepted, acceptedEmotionValue, acceptedSpeed, acceptedVoice, busy, draftEmotionValue, draftSpeed, draftVoice, effective, previewSpeed, ready, settingsRef, valid]);
 			const onToggleAutoSpeak = useCallback(() => {
 				if (!ready || busy) return;
 				setNotice(null);
@@ -2189,6 +2582,8 @@ window.__ModuleLoader__.load({
 			};
 			const noticeStyle = notice === 'failed' ? ROW_NOTICE_ERROR_STYLE : ROW_NOTICE_STYLE;
 			const inputStyle = Object.assign({}, NUMBER_INPUT_STYLE, disabled ? { opacity: 0.5 } : {});
+			const selectStyle = Object.assign({}, SELECT_STYLE, disabled ? { opacity: 0.5 } : {});
+			const previewStyle = Object.assign({}, PREVIEW_BUTTON_STYLE, disabled ? { cursor: 'default', opacity: 0.5 } : {});
 			const saveStyle = Object.assign({}, PRIMARY_BUTTON_STYLE, !dirty || busy ? { cursor: 'default', opacity: 0.5 } : {});
 			const resetStyle = Object.assign({}, SMALL_BUTTON_STYLE, !ready || busy ? { cursor: 'default', opacity: 0.5 } : {});
 
@@ -2314,13 +2709,162 @@ window.__ModuleLoader__.load({
 					}),
 					jsx('section', {
 						style: PLUGIN_SECTION_STYLE,
-						children: jsxs('div', {
-							style: FACTS_ROW_STYLE,
-							children: [
-								jsx('span', { children: `${translate(t, 'pluginSettings.voice')}: ${state.voice ?? '—'}` }),
-								jsx('span', { children: `${translate(t, 'pluginSettings.speed')}: ${state.speed ?? '—'}` }),
-							],
-						}),
+						children: [
+							jsxs('div', {
+								style: PLUGIN_ROW_STYLE,
+								children: [
+									jsxs('div', {
+										style: PLUGIN_TEXT_STYLE,
+										children: [
+											jsx('div', { style: ROW_TITLE_STYLE, children: translate(t, 'pluginSettings.voice') }),
+											jsx('div', { style: ROW_DESCRIPTION_STYLE, children: translate(t, 'pluginSettings.voice.description') }),
+										],
+									}),
+									jsx('button', {
+										type: 'button',
+										'data-voice-reply-preview': '',
+										disabled,
+										style: previewStyle,
+										onClick: onPreview,
+										children: previewLabel,
+									}),
+								],
+							}),
+							jsxs('div', {
+								style: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 },
+								children: [
+									jsx('select', {
+										'data-voice-reply-voice-select': '',
+										'aria-label': translate(t, 'pluginSettings.voice'),
+										value: draftVoice,
+										disabled,
+										style: selectStyle,
+										onChange: onVoiceChange,
+										children: voices.map((voice) => jsx('option', { value: voice.id, children: voice.label })),
+									}),
+									previewFailed
+										? jsx('div', { role: 'status', style: ROW_NOTICE_ERROR_STYLE, children: previewErrorText })
+										: null,
+								],
+							}),
+						],
+					}),
+					jsx('section', {
+						style: PLUGIN_SECTION_STYLE,
+						children: [
+							jsxs('div', {
+								style: PLUGIN_ROW_STYLE,
+								children: [
+									jsxs('div', {
+										style: PLUGIN_TEXT_STYLE,
+										children: [
+											jsx('div', { style: ROW_TITLE_STYLE, children: translate(t, 'pluginSettings.emotion') }),
+											jsx('div', { style: ROW_DESCRIPTION_STYLE, children: translate(t, 'pluginSettings.emotion.description') }),
+										],
+									}),
+									jsx('button', {
+										type: 'button',
+										'data-voice-reply-preview-emotion': '',
+										disabled,
+										style: previewStyle,
+										onClick: onPreview,
+										children: previewLabel,
+									}),
+								],
+							}),
+							jsxs('div', {
+								style: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 },
+								children: [
+									jsx('select', {
+										'data-voice-reply-emotion-select': '',
+										'aria-label': translate(t, 'pluginSettings.emotion'),
+										value: draftEmotionValue,
+										disabled: disabled || draftEmotionSupported.length === 0,
+										style: selectStyle,
+										onChange: onEmotionChange,
+										children:
+											draftEmotionSupported.length === 0
+												? [jsx('option', { value: '', children: translate(t, 'pluginSettings.emotion.default') })]
+												: draftEmotionSupported.map((emotion) =>
+														jsx('option', {
+															value: emotion,
+															children: translate(t, `pluginSettings.emotionValue.${emotion}`),
+														}),
+													),
+									}),
+									draftEmotionSupported.length === 0
+										? jsx('div', { style: CAPTION_STYLE, children: translate(t, 'pluginSettings.emotion.unsupported') })
+										: null,
+								],
+							}),
+						],
+					}),
+					jsx('section', {
+						style: PLUGIN_SECTION_STYLE,
+						children: [
+							jsxs('div', {
+								style: PLUGIN_ROW_STYLE,
+								children: [
+									jsxs('div', {
+										style: PLUGIN_TEXT_STYLE,
+										children: [
+											jsx('div', { style: ROW_TITLE_STYLE, children: translate(t, 'pluginSettings.speed') }),
+											jsx('div', { style: ROW_DESCRIPTION_STYLE, children: translate(t, 'pluginSettings.speed.description') }),
+										],
+									}),
+									jsxs('div', {
+										style: { alignItems: 'center', display: 'flex', flex: '0 0 auto', gap: 10 },
+										children: [
+											jsx('span', {
+												'data-voice-reply-speed-value': '',
+												style: SPEED_VALUE_STYLE,
+												children: `${previewSpeed.toFixed(2)}×`,
+											}),
+											jsx('button', {
+												type: 'button',
+												'data-voice-reply-preview-speed': '',
+												disabled,
+												style: previewStyle,
+												onClick: onPreview,
+												children: previewLabel,
+											}),
+										],
+									}),
+								],
+							}),
+							jsxs('div', {
+								style: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 },
+								children: [
+									jsx('input', {
+										type: 'range',
+										min: SPEED_LIMITS.min,
+										max: SPEED_LIMITS.max,
+										step: SPEED_LIMITS.step,
+										'data-voice-reply-speed-range': '',
+										'aria-label': translate(t, 'pluginSettings.speed'),
+										value: draftSpeed,
+										disabled,
+										style: RANGE_STYLE,
+										onChange: onSpeedChange,
+									}),
+									jsxs('div', {
+										style: PRESET_ROW_STYLE,
+										children: [
+											jsx('span', { style: CAPTION_STYLE, children: translate(t, 'pluginSettings.presets') }),
+											...[0.9, 1.1, 1.32, 1.5].map((value) =>
+												jsx('button', {
+													type: 'button',
+													style: SMALL_BUTTON_STYLE,
+													disabled,
+													onClick: () => onSpeedPreset(value),
+													children: `${value.toFixed(2)}×`,
+												}),
+											),
+										],
+									}),
+								],
+							}),
+						],
 					}),
 					jsxs('div', {
 						style: BUTTON_ROW_STYLE,

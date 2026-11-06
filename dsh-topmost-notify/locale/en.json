@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Task notifications",
+    "description": "Always-on-top task-finished and answer-needed notifications with a separate duration and sound for each kind, a bundled or custom MP3/WAV chime, and its own settings page on the Plugins page."
+  }
+}

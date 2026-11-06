@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "语音回复",
-    "description": "使用 Yandex SpeechKit 朗读助手回复的简短摘要，添加重播按钮，并可在插件设置中调整朗读长度。"
+    "description": "使用 Yandex SpeechKit 朗读助手回复的简短摘要，添加重播按钮，并可在插件设置中调整朗读长度、声音、语调和语速。"
   }
 }

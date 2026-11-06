@@ -5,7 +5,7 @@ A small collection of plugins for [DeepSeek Harness](https://github.com/deepseek
 
 | Plugin | What it does | Platform | Install |
 |---|---|---|---|
-| [`dsh-topmost-notify`](dsh-topmost-notify) | Native always-on-top window + chime when the agent finishes a task; never steals focus | Windows 10/11 | `dsh plugin --profile web add dsh-topmost-notify` |
+| [`dsh-topmost-notify`](dsh-topmost-notify) | Native always-on-top window + chime when the agent finishes a task or needs an answer; per-kind display time and MP3/WAV sound, its own settings page, never steals focus | Windows 10/11 | repo `install.ps1` (npm release pending) |
 | [`dsh-voice-reply`](dsh-voice-reply) | Reads a short spoken summary of every finished answer with Yandex SpeechKit TTS; replay button and its own settings page | DSH Web | `dsh plugin --profile web add dsh-voice-reply` |
 | [`dsh-speech-to-text-yandex`](dsh-speech-to-text-yandex) | Cloud speech-to-text provider (`yandex-speechkit`) for the built-in Voice input | DSH Web | `dsh plugin --profile web add dsh-speech-to-text-yandex` |
 

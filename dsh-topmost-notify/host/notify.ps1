@@ -11,24 +11,31 @@
 
     Контракт (вызывает host-плагин):
       powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File notify.ps1 `
-          -PayloadBase64 <base64 от UTF-8 JSON>
+          -PayloadBase64 <base64 от UTF-8 JSON> [-PreviewSound]
       JSON: {
         "title": string, "body": string,
         "durationMs": number,          // 300..15000, сколько окно висит
-        "sound": true | false | "C:\path\to\custom.wav",   // свой звук (из настроек)
+        "sound": true | false | "C:\path\to\custom.wav|.mp3",   // свой звук (из настроек)
         "kind": "completed" | "question"
       }
-    Поле "sound" строкой — путь к своему WAV (абсолютный или относительно папки скрипта).
-    Если файл не найден — предупреждение в stderr и стандартный звук этого вида.
+    Поле "sound" строкой — путь к своему WAV или MP3 (абсолютный или относительно папки скрипта).
+    WAV играется через System.Media.SoundPlayer, MP3 — через System.Windows.Media.MediaPlayer
+    (оба не забирают фокус). Если файл не найден — предупреждение в stderr и стандартный звук вида.
+    Свой файл доигрывается до конца (не дольше ~20 с); встроенные chime — прежний хвост 350 мс.
+
+    -PreviewSound — проиграть ТОЛЬКО звук (payload.sound / -SoundFile / встроенный по -Kind),
+    без окна, сразу выйти с кодом 0. Используется кнопкой «Прослушать» на странице настроек.
 
     Ручной запуск:
       powershell.exe -NoProfile -ExecutionPolicy Bypass -File notify.ps1 `
           -Title "Задача выполнена" -Body "Проверка окна" -DurationMs 1500
       ... -Kind question  — вопросительный вид;
-      ... -SoundFile "D:\sounds\my.wav" — свой звук;
+      ... -SoundFile "D:\sounds\my.wav" — свой звук (WAV или MP3);
+      ... -PreviewSound — только звук, без окна;
       ... -Silent — без звука;  ... -Diag — тайминги этапов в stderr.
 
-    Коды выхода: 0 — окно показано и закрыто штатно; 1 — ошибка (текст в stderr).
+    Коды выхода: 0 — окно показано и закрыто штатно (или звук сыгран в -PreviewSound);
+    1 — ошибка (текст в stderr).
 
     Файл сохранён в UTF-8 С BOM: PowerShell 5.1 иначе читает кириллицу как ANSI.
     Скорость: JSON разбирается вручную (ConvertFrom-Json тянет JavaScriptSerializer ~230 мс),
@@ -45,6 +52,7 @@ param(
     [string]$Kind = 'completed',
     [string]$SoundFile,
     [switch]$Silent,
+    [switch]$PreviewSound,
     [switch]$Diag
 )
 
@@ -186,33 +194,157 @@ function Resolve-ChimePath([string]$kind, [string]$custom) {
     return (Join-Path $PSScriptRoot $default)
 }
 
-# Звук стартует в Loaded (одновременно с окном). Если WPF не дошёл до показа — фолбэк ниже.
-function Start-Chime([string]$wavPath) {
-    if ([string]::IsNullOrWhiteSpace($wavPath)) { return }
+# Длительность WAV из заголовка (byte rate + размер data-чанка); 0 — не удалось.
+function Get-WavDurationMs([string]$path) {
     try {
-        if (-not (Test-Path -LiteralPath $wavPath)) {
-            [Console]::Error.WriteLine("notify.ps1: wav не найден: $wavPath")
-            return
+        $bytes = [System.IO.File]::ReadAllBytes($path)
+        if ($bytes.Length -lt 44) { return 0 }
+        if ([System.Text.Encoding]::ASCII.GetString($bytes, 0, 4) -ne 'RIFF') { return 0 }
+        if ([System.Text.Encoding]::ASCII.GetString($bytes, 8, 4) -ne 'WAVE') { return 0 }
+        $byteRate = [System.BitConverter]::ToUInt32($bytes, 28)
+        $offset = 12
+        while ($offset + 8 -le $bytes.Length) {
+            $id = [System.Text.Encoding]::ASCII.GetString($bytes, $offset, 4)
+            $len = [System.BitConverter]::ToUInt32($bytes, $offset + 4)
+            if ($id -eq 'data') {
+                if ($byteRate -gt 0 -and $len -gt 0) { return [int][math]::Round($len / $byteRate * 1000) }
+                return 0
+            }
+            $offset += 8 + $len + ($len % 2)
         }
-        $script:wavMs = [int][math]::Round((([System.IO.FileInfo]$wavPath).Length - 44) / 2 / 44.1)
-        $script:soundPlayer = New-Object System.Media.SoundPlayer $wavPath
-        $script:soundStart = Get-Date
-        $script:soundPlayer.Play()   # асинхронно, возвращается сразу
-        $script:soundStarted = $true
-        Diag ("звук запущен: " + (Split-Path -Path $wavPath -Leaf))
+        return 0
+    }
+    catch { return 0 }
+}
+
+# Прокачать очередь Dispatcher на $ms миллисекунд: доставляет события MediaPlayer
+# (MediaOpened/MediaEnded/MediaFailed) без запущенного цикла WPF-приложения.
+function Pump-Dispatcher([int]$ms = 40) {
+    try {
+        $frame = New-Object System.Windows.Threading.DispatcherFrame
+        $timer = New-Object System.Windows.Threading.DispatcherTimer
+        $timer.Interval = [TimeSpan]::FromMilliseconds([math]::Max(10, $ms))
+        $timer.Add_Tick({ $timer.Stop(); $frame.Continue = $false })
+        $timer.Start()
+        [System.Windows.Threading.Dispatcher]::PushFrame($frame)
+    }
+    catch { }
+}
+
+$script:soundStarted = $false
+$script:soundStart = $null
+$script:soundPlayer = $null
+$script:mediaPlayer = $null
+$script:audioKind = ''
+$script:wavMs = 0
+$script:audioMs = 0
+$script:audioDone = $false
+$script:audioIsCustom = (-not [string]::IsNullOrWhiteSpace($customSound))
+
+# MP3 — через MediaPlayer (WPF), WAV — через SoundPlayer. Оба асинхронные, возвращаются сразу.
+function Start-Audio([string]$audioPath) {
+    if ([string]::IsNullOrWhiteSpace($audioPath)) { return }
+    if (-not (Test-Path -LiteralPath $audioPath)) {
+        [Console]::Error.WriteLine("notify.ps1: звук не найден: $audioPath")
+        return
+    }
+    $script:audioKind = if ([System.IO.Path]::GetExtension($audioPath).ToLowerInvariant() -eq '.mp3') { 'mp3' } else { 'wav' }
+    try {
+        if ($script:audioKind -eq 'mp3') { Start-AudioMp3 $audioPath }
+        else { Start-AudioWav $audioPath }
     }
     catch {
         [Console]::Error.WriteLine("notify.ps1: звук не проигран: $($_.Exception.Message)")
     }
 }
 
-$script:soundStarted = $false
-$script:soundStart = $null
-$script:wavMs = 0
+function Start-AudioWav([string]$audioPath) {
+    $script:wavMs = Get-WavDurationMs $audioPath
+    if ($script:wavMs -le 0) {
+        $script:wavMs = [int][math]::Round((([System.IO.FileInfo]$audioPath).Length - 44) / 2 / 44.1)
+        if ($script:wavMs -lt 0) { $script:wavMs = 0 }
+    }
+    $script:audioMs = $script:wavMs
+    $script:soundPlayer = New-Object System.Media.SoundPlayer $audioPath
+    $script:soundStart = Get-Date
+    $script:soundPlayer.Play()   # асинхронно, возвращается сразу
+    $script:soundStarted = $true
+    Diag ("звук запущен (wav): " + (Split-Path -Path $audioPath -Leaf) + " ~" + $script:wavMs + " ms")
+}
+
+function Start-AudioMp3([string]$audioPath) {
+    Add-Type -AssemblyName PresentationCore -ErrorAction Stop
+    $script:mediaPlayer = New-Object System.Windows.Media.MediaPlayer
+    $script:mediaPlayer.Volume = 1.0
+    $script:mediaPlayer.Add_MediaEnded({
+            $script:audioDone = $true
+            Diag 'звук завершён (mp3): MediaEnded'
+        })
+    $script:mediaPlayer.Open((New-Object System.Uri $audioPath))
+    $script:mediaPlayer.Play()   # запустится, как только откроется поток
+    $script:soundStart = Get-Date
+    $script:soundStarted = $true
+    $script:audioMs = 0
+    Diag ("звук запущен (mp3): " + (Split-Path -Path $audioPath -Leaf))
+}
+
+# Обновить оценку длительности MP3 из NaturalDuration (после MediaOpened).
+function Update-MediaDuration {
+    if ($null -eq $script:mediaPlayer) { return }
+    try {
+        $natural = $script:mediaPlayer.NaturalDuration
+        if ($natural.HasTimeSpan) {
+            $ms = [int][math]::Round($natural.TimeSpan.TotalMilliseconds)
+            if ($ms -gt 0 -and $ms -ne $script:audioMs) {
+                $script:audioMs = $ms
+                Diag ("mp3: длительность " + $ms + " ms")
+            }
+        }
+    }
+    catch { }
+}
+
+# Дождаться конца своего файла: оценка длительности + MediaEnded, не дольше $MaxMs.
+function Wait-AudioEnd([int]$MaxMs) {
+    if (-not $script:soundStarted) { return }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $limit = $MaxMs
+    while (-not $script:audioDone) {
+        if ($script:audioKind -eq 'mp3') {
+            Update-MediaDuration
+            if ($script:audioMs -gt 0) { $limit = [math]::Min($limit, $script:audioMs + 400) }
+        }
+        if ($script:audioMs -gt 0 -and $sw.ElapsedMilliseconds -ge ($script:audioMs + 400)) { break }
+        # неизвестная длительность (битый/неоткрывшийся поток) — не ждём все 20 с
+        if ($script:audioKind -eq 'mp3' -and $script:audioMs -le 0 -and $sw.ElapsedMilliseconds -ge 3000) { break }
+        if ($sw.ElapsedMilliseconds -ge $limit) { break }
+        if ($script:audioKind -eq 'mp3') { Pump-Dispatcher 30 }
+        else { Start-Sleep -Milliseconds 30 }
+    }
+    if ($script:audioKind -eq 'mp3' -and $null -ne $script:mediaPlayer) {
+        try { $script:mediaPlayer.Stop() } catch { }
+        try { $script:mediaPlayer.Close() } catch { }
+    }
+    Diag ("звук завершён (" + $script:audioKind + "): ждали " + $sw.ElapsedMilliseconds + " ms")
+}
+
 $chimePath = $null
 if ($playSound) {
     $chimePath = Resolve-ChimePath $kindValue $customSound
-    Diag ("вид=$kindValue, звук=" + (Split-Path -Path $chimePath -Leaf))
+    Diag ("вид=$kindValue, звук=" + (Split-Path -Path $chimePath -Leaf) + ", свой=" + $script:audioIsCustom)
+}
+
+# --- 2a. -PreviewSound: только звук, без окна (кнопка «Прослушать» в настройках) ----------
+if ($PreviewSound) {
+    if (-not $playSound) {
+        Diag 'preview-sound: звук выключен, играть нечего'
+        exit 0
+    }
+    Diag 'preview-sound: окно не показываем'
+    Start-Audio $chimePath
+    if (-not $script:soundStarted) { Fail "не удалось запустить звук: $chimePath" }
+    Wait-AudioEnd -MaxMs 20000
+    exit 0
 }
 
 # --- 3. WPF: безрамочное topmost-окно, не забирающее фокус --------------------------------
@@ -346,7 +478,7 @@ try {
     $window.Add_Loaded({
             Diag 'Loaded'
             # Звук — ровно в момент появления карточки (раньше он «отрывался» от окна на ~1.9 с).
-            if ($playSound -and -not $script:soundStarted) { Start-Chime $chimePath }
+            if ($playSound -and -not $script:soundStarted) { Start-Audio $chimePath }
 
             $fadeIn = New-Object System.Windows.Media.Animation.DoubleAnimation
             $fadeIn.From = 0.0
@@ -395,14 +527,23 @@ catch {
 
 # --- 4. Фолбэк: если WPF-часть не дошла до показа окна, звук всё равно должен быть ---------
 if ($playSound -and -not $script:soundStarted -and $chimePath) {
-    Start-Chime $chimePath
+    Start-Audio $chimePath
 }
 
-# --- 5. Дать звуку доиграть хвост (не дольше 350 мс) --------------------------------------
-if ($script:soundStarted -and $null -ne $script:soundStart) {
-    $elapsedMs = ((Get-Date) - $script:soundStart).TotalMilliseconds
-    $remain = [math]::Min($script:wavMs - $elapsedMs, 350)
-    if ($remain -gt 0) { Start-Sleep -Milliseconds ([int]$remain) }
+# --- 5. Дождаться звука: свой файл — до конца (не дольше ~20 с), встроенный chime — 350 мс --
+if ($script:soundStarted) {
+    if ($script:audioIsCustom) {
+        Wait-AudioEnd -MaxMs 20000
+    }
+    elseif ($script:audioKind -eq 'mp3') {
+        # встроенных mp3 нет, но на случай подмены файла в host/ — короткий хвост
+        Wait-AudioEnd -MaxMs 350
+    }
+    elseif ($null -ne $script:soundStart) {
+        $elapsedMs = ((Get-Date) - $script:soundStart).TotalMilliseconds
+        $remain = [math]::Min($script:wavMs - $elapsedMs, 350)
+        if ($remain -gt 0) { Start-Sleep -Milliseconds ([int]$remain) }
+    }
 }
 
 exit $exitCode

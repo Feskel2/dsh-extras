@@ -38,6 +38,9 @@ function stagePackage() {
   const dir = mkdtempSync(join(tmpdir(), 'topmost-notify-smoke-'))
   for (const file of ['package.json', 'index.mjs']) cpSync(join(ROOT, file), join(dir, file))
   cpSync(join(ROOT, 'host'), join(dir, 'host'), { recursive: true })
+  if (existsSync(join(ROOT, 'test', 'fixtures'))) {
+    cpSync(join(ROOT, 'test', 'fixtures'), join(dir, 'test', 'fixtures'), { recursive: true })
+  }
   symlinkSync(dshNodeModules(), join(dir, 'node_modules'), 'junction')
   return dir
 }
@@ -46,6 +49,14 @@ const dir = stagePackage()
 const logPath = join(dir, 'host', 'notify-debug.log')
 const handlers = new Map()
 const warns = []
+/**
+ * Routes registered through the fake web server; the HTTP API test uses the real
+ * handler, this smoke test only guards the registration shape.
+ */
+const routes = []
+
+/** No-op disposer used by the fake `ctx.effect`. */
+function noop() {}
 
 const ctx = {
   logger: { info: () => {}, warn: (...args) => warns.push(args) },
@@ -54,6 +65,17 @@ const ctx = {
     return () => handlers.delete(event)
   },
   get: () => undefined,
+  // cordis `ctx.effect(fn)` runs fn and keeps its disposer; the fake mirrors that.
+  effect: (fn) => {
+    const dispose = fn()
+    return typeof dispose === 'function' ? dispose : noop
+  },
+  webServer: {
+    register: (route) => {
+      routes.push(route)
+      return noop
+    },
+  },
 }
 
 /** Every payload the plugin decided to notify with, in order. */
@@ -250,7 +272,139 @@ try {
   emit(mutedSession, { type: 'turn/end', data: { turn: 3, reason: { kind: 'completed' } } })
   assert.equal(dryRuns().length, 1, 'an unmuted chat notifies again')
 
-  console.log('PASS index-smoke: 18 scenarios')
+  // --- 19. v1.1: separate durations per notification kind -------------------
+  reset()
+  plugin.apply(ctx, { enabled: true, durationMs: 2500, questionDurationMs: 4000, sound: true })
+  const durationsSession = { id: 'session-durations', header: {} }
+  emit(durationsSession, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  emit(durationsSession, { type: 'tool/call', data: { turn: 2, step: 1, callId: 'call-dur-1', name: 'ask_user_question', arguments: askArgs } })
+  runs = dryRuns()
+  assert.equal(runs.length, 2, 'completed and question both notify')
+  assert.equal(runs[0].durationMs, 2500, 'completed uses durationMs')
+  assert.equal(runs[1].durationMs, 4000, 'question uses questionDurationMs')
+
+  // questionDurationMs is optional: it falls back to durationMs
+  reset()
+  plugin.apply(ctx, { enabled: true, durationMs: 1700, sound: true })
+  emit(asking, { type: 'tool/call', data: { turn: 5, step: 1, callId: 'call-dur-2', name: 'ask_user_question', arguments: askArgs } })
+  runs = dryRuns()
+  assert.equal(runs.length, 1, 'question notifies without questionDurationMs')
+  assert.equal(runs[0].durationMs, 1700, 'questionDurationMs falls back to durationMs')
+
+  // --- 20. v1.1: per-kind sound switches ------------------------------------
+  reset()
+  plugin.apply(ctx, {
+    enabled: true,
+    durationMs: 1000,
+    questionDurationMs: 1500,
+    sound: true,
+    completedSoundEnabled: false,
+    questionSoundEnabled: true,
+  })
+  emit(durationsSession, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  emit(durationsSession, { type: 'tool/call', data: { turn: 2, step: 1, callId: 'call-snd-1', name: 'ask_user_question', arguments: askArgs } })
+  runs = dryRuns()
+  assert.equal(runs.length, 2, 'both kinds still notify')
+  assert.equal(runs[0].sound, false, 'completedSoundEnabled=false mutes the completion sound')
+  assert.equal(runs[1].sound, true, 'questionSoundEnabled=true keeps the question sound')
+
+  // --- 21. v1.1: legacy `sound` master applies when per-kind fields are absent
+  reset()
+  plugin.apply(ctx, { enabled: true, durationMs: 1000, sound: false })
+  emit(durationsSession, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  emit(durationsSession, { type: 'tool/call', data: { turn: 2, step: 1, callId: 'call-snd-2', name: 'ask_user_question', arguments: askArgs } })
+  runs = dryRuns()
+  assert.equal(runs.length, 2, 'both kinds notify with the legacy master')
+  assert.equal(runs[0].sound, false, 'legacy sound=false mutes the completion sound')
+  assert.equal(runs[1].sound, false, 'legacy sound=false mutes the question sound')
+
+  // --- 22. v1.1: an existing custom file becomes the payload sound path -----
+  const customWav = join(dir, 'host', 'chime.wav')
+  const customMp3 = join(dir, 'test', 'fixtures', 'valid-clip.mp3')
+  reset()
+  plugin.apply(ctx, {
+    enabled: true,
+    durationMs: 1000,
+    questionDurationMs: 1200,
+    sound: true,
+    completedSoundEnabled: true,
+    questionSoundEnabled: true,
+    completedSoundFile: customWav,
+    questionSoundFile: customMp3,
+  })
+  emit(durationsSession, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  emit(durationsSession, { type: 'tool/call', data: { turn: 2, step: 1, callId: 'call-file-1', name: 'ask_user_question', arguments: askArgs } })
+  runs = dryRuns()
+  assert.equal(runs.length, 2, 'both kinds notify with custom sounds')
+  assert.equal(runs[0].sound, customWav, 'completed custom WAV path reaches the payload')
+  assert.equal(runs[1].sound, customMp3, 'question custom MP3 path reaches the payload')
+
+  // --- 23. v1.1: a missing custom file falls back to the bundled signal -----
+  reset()
+  plugin.apply(ctx, {
+    enabled: true,
+    durationMs: 1000,
+    sound: true,
+    completedSoundFile: join(dir, 'host', 'missing-clip.mp3'),
+    questionSoundFile: join(dir, 'sounds', 'nope.wav'),
+  })
+  emit(durationsSession, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  emit(durationsSession, { type: 'tool/call', data: { turn: 2, step: 1, callId: 'call-file-2', name: 'ask_user_question', arguments: askArgs } })
+  runs = dryRuns()
+  assert.equal(runs.length, 2, 'both kinds notify with bundled fallbacks')
+  assert.equal(runs[0].sound, true, 'missing completion file falls back to the bundled chime')
+  assert.equal(runs[1].sound, true, 'missing question file falls back to the bundled chime')
+  assert.ok(readFileSync(logPath, 'utf8').includes('custom-sound-missing'), 'missing custom file is logged')
+
+  // --- 24. v1.1: the HTTP API registers one prefix route -------------------
+  routes.length = 0
+  plugin.apply(ctx, config)
+  assert.equal(routes.length, 1, 'one prefix route registered')
+  assert.equal(routes[0].kind, 'prefix', 'registered as a prefix route')
+  assert.equal(routes[0].path, '/dsh-topmost-notify', 'route prefix matches the settings page')
+  assert.equal(typeof routes[0].handler, 'function', 'route handler is callable')
+
+  // --- 25. v1.1: a Host without webServer/effect does not break the plugin --
+  const bareCtx = {
+    logger: { info: () => {}, warn: () => {} },
+    on: () => noop,
+    get: () => undefined,
+  }
+  assert.doesNotThrow(() => plugin.apply(bareCtx, config), 'apply without effect/webServer does not throw')
+  const noServerCtx = {
+    ...bareCtx,
+    effect: (fn) => {
+      const dispose = fn()
+      return typeof dispose === 'function' ? dispose : noop
+    },
+    webServer: null,
+  }
+  assert.doesNotThrow(() => plugin.apply(noServerCtx, config), 'apply with effect but no webServer does not throw')
+
+  // --- 26. v1.1 production shape: new fields are volatile wrappers ---------
+  reset()
+  plugin.apply(ctx, {
+    enabled: live(true),
+    durationMs: live(1200),
+    questionDurationMs: live(1800),
+    sound: live(true),
+    completedSoundEnabled: live(false),
+    questionSoundEnabled: live(true),
+    completedSoundFile: live(''),
+    questionSoundFile: live(''),
+    showSessionTitle: live(false),
+    showAnswerExcerpt: live(true),
+  })
+  emit(durationsSession, { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } })
+  emit(durationsSession, { type: 'tool/call', data: { turn: 2, step: 1, callId: 'call-vol-1', name: 'ask_user_question', arguments: askArgs } })
+  runs = dryRuns()
+  assert.equal(runs.length, 2, 'volatile v1.1 fields still notify')
+  assert.equal(runs[0].durationMs, 1200, 'volatile durationMs read through get()')
+  assert.equal(runs[0].sound, false, 'volatile completedSoundEnabled=false read through get()')
+  assert.equal(runs[1].durationMs, 1800, 'volatile questionDurationMs read through get()')
+  assert.equal(runs[1].sound, true, 'volatile questionSoundEnabled=true read through get()')
+
+  console.log('PASS index-smoke: 26 scenarios (18 original + 8 v1.1)')
   console.log('  completed turn payload:', JSON.stringify(runs[0]))
 } finally {
   rmSync(dir, { recursive: true, force: true })

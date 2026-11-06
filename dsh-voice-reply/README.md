@@ -23,7 +23,7 @@ The agent works for a while and then answers with a wall of text. You want to he
 - The spoken budget is the user-facing setting: **500 characters by default** (about 30 seconds), adjustable from 100 to 2000. A long answer is reduced to its key sentences instead of being read for minutes.
 - Every finalized answer gets a **🔊 speaker button** in the action strip: click to replay, click again to stop. Replays are served from the on-disk audio cache, so they do not call Yandex (or bill you) again.
 - A small chip above the composer shows the state while audio is prepared or played (e.g. "reading the brief summary…") and has a stop button. Errors and the browser's autoplay block are reported there too.
-- **Settings → General → "Read answers aloud"** is the `autoSpeak` switch. The plugin's own settings page (**Plugins → Voice replies**) edits the spoken-summary budget and `autoSpeak`; the voice and speed are shown there and come from the plugin config.
+- **Settings → General → "Read answers aloud"** is the `autoSpeak` switch. The plugin's own settings page (**Plugins → Voice replies → Configure**) edits the spoken-summary budget, the Yandex voice, the voice **intonation**, the speech speed and `autoSpeak`; a **Preview** button plays a short sample with the current draft voice, intonation and speed before you save. The intonation dropdown always offers exactly the intonations the selected voice supports, and voices without intonations say so.
 - History is not re-read: only answers that finish while the plugin is installed are spoken, and only new turns trigger automatic speech; the 🔈 button still works on any answer.
 - Deliberately does **not** listen to the microphone, transcribe audio, or send your chat anywhere except the short text it synthesizes.
 
@@ -50,16 +50,16 @@ Then restart `dsh web` — profile UI plugins are loaded at boot — and open th
 | `autoSpeak` | `true` | Speak new answers automatically (Settings → General and the plugin settings page) |
 | `summaryMaxChars` | `500` | Maximum characters of the spoken summary (100–2000, step 50) |
 | `maxChars` | `4000` | Legacy hard cap on the source answer before summarization |
-| `voice` | `marina` | Yandex TTS v1 voice (see the list below) |
-| `emotion` | `''` | Optional Russian emotion (`neutral`, `good`, `evil`, `friendly`, `whisper`; voice-dependent) |
-| `speed` | `1.32` | Speech rate, 0.1–3.0 |
+| `voice` | `marina` | Yandex TTS v1 voice (see the list below; editable on the plugin settings page) |
+| `emotion` | `''` | Optional Yandex intonation (`neutral`, `good`, `evil`, `friendly`, `whisper`); the available set depends on the voice, and an empty value means the voice default. Editable on the plugin settings page |
+| `speed` | `1.32` | Speech rate, 0.1–3.0 (editable on the plugin settings page) |
 | `format` | `mp3` | `mp3`, `oggopus` or `lpcm` |
 | `debug` | `true` | Accepted for compatibility; this build writes `.state/events.log` regardless (counts, timings and status codes only) |
 | `endpoint` | `https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize` | SpeechKit TTS endpoint |
 
-The Settings → General row and the plugin settings page write through the host (`POST /dsh-voice-reply/preferences`) and apply immediately, without editing the profile or restarting `dsh web`.
+The Settings → General row and the plugin settings page write through the host (`POST /dsh-voice-reply/preferences`) and apply immediately, without editing the profile or restarting `dsh web`. The plugin settings page also saves `voice`, `emotion` and `speed` there, so a choice made in the UI wins over the patch row.
 
-![The plugin settings page: spoken-summary budget and auto-speak](assets/plugin-settings.png)
+![The plugin settings page: spoken-summary budget, voice, intonation, speed and auto-speak](assets/plugin-settings.png)
 
 Settings can also live in the `config` block of the plugin row:
 
@@ -106,7 +106,8 @@ turn ends (reason = completed)
                  └─ <audio> plays sequentially; 🔊 replays from the cache
 ```
 
-- Host routes: `GET /dsh-voice-reply/status`, `POST /dsh-voice-reply/speak`, `POST /dsh-voice-reply/preferences`, `GET /dsh-voice-reply/audio/<file>`; the "one answer per chat" store is a separate row (`dsh-voice-reply/pending`, routes under `/dsh-voice-pending`).
+- Host routes: `GET /dsh-voice-reply/status`, `POST /dsh-voice-reply/speak`, `POST /dsh-voice-reply/preview`, `POST /dsh-voice-reply/preferences`, `GET /dsh-voice-reply/audio/<file>`; the "one answer per chat" store is a separate row (`dsh-voice-reply/pending`, routes under `/dsh-voice-pending`).
+- The plugin settings page previews a draft voice/intonation/speed through `/preview`: the host synthesizes a short language-appropriate sample with those drafts and the browser plays it through the same player. Preview audio is cached like answer audio, so replaying the same sample costs nothing.
 - The pending answer is claimed atomically: switching chats, reloading the page or opening a second tab cannot start the same answer twice.
 - A long answer is split into chunks that satisfy SpeechKit's 5000-character and 15 KB URL-encoded body limits (Cyrillic expands about 6× when encoded).
 - `429`/`5xx`/timeouts are retried with backoff; `400`/`401`/`403` are not retried and are shown with an actionable hint.
@@ -117,6 +118,7 @@ turn ends (reason = completed)
 - **Paid service.** Yandex SpeechKit TTS is billed by Yandex Cloud according to its tariffs for every uncached synthesis. The plugin itself is free; cached replays cost nothing.
 - **A summary, not the full answer.** Only the extracted key sentences are spoken (default 500 characters, 100–2000). Code blocks, tables and links are skipped; the full text stays on screen.
 - SpeechKit **v1 voices only** — `alena`, `filipp`, `ermil`, `jane`, `omazh`, `zahar`, `marina`, `madi_ru`, `amira`, `madi`, `nigora`, `john`, `lea`. The v3 voices (`dasha`, `julia`, `lera`, `masha`, …) and v3 SSML are not available through this API.
+- **Intonations are voice-specific.** Only Russian voices expose them (`alena`, `ermil`, `jane`, `omazh`, `zahar`: neutral + good/evil; `marina`: neutral, whisper, friendly); the other v1 voices always sound neutral. Changing the voice keeps an intonation only when the new voice supports it, and an unsupported value is never sent to Yandex.
 - Browser autoplay policy can block the first automatic playback until you interact with the page; the chip then asks you to press 🔊.
 - History is not re-read automatically; answers finished before installation have no host record and speak only when you press 🔊.
 - Speech is generated sequentially (one TTS call at a time), so a long summary may take a few seconds before the first sound.
@@ -152,7 +154,7 @@ node test/client-static.mjs       # browser module in a VM, no Chrome
 npm pack --dry-run                # inspect the published file list
 ```
 
-The `test/e2e-*.mjs` scripts need Chrome and a running `dsh web`; they are not part of the package. `test/e2e-plugin-settings.mjs` additionally verifies the plugin's own settings page and that a long answer reaches the TTS endpoint already shortened (with a local mock).
+The `test/e2e-*.mjs` scripts need Chrome and a running `dsh web`; they are not part of the package. `test/e2e-plugin-settings.mjs` additionally verifies the plugin's own settings page (including choosing and auditioning an intonation) and that a long answer reaches the TTS endpoint already shortened (with a local mock).
 
 ## License
 
