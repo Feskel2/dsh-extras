@@ -1,0 +1,209 @@
+{
+  "format": 1,
+  "title": {
+    "en": "DSH Extras — practical plugins",
+    "ru": "DSH Extras — практичные плагины"
+  },
+  "description": {
+    "en": "Always-on-top completion notifications for Windows, and Russian voice I/O via Yandex SpeechKit.",
+    "ru": "Окно поверх всех приложений на Windows, когда агент закончил, и русский голос через Yandex SpeechKit."
+  },
+  "metadata": {
+    "categories": {
+      "notify": {
+        "title": {
+          "en": "Notifications",
+          "ru": "Уведомления"
+        }
+      },
+      "voice": {
+        "title": {
+          "en": "Voice & Audio",
+          "ru": "Голос и звук"
+        }
+      }
+    },
+    "labels": {
+      "windows": {
+        "title": {
+          "en": "Windows",
+          "ru": "Windows"
+        }
+      },
+      "always-on-top": {
+        "title": {
+          "en": "Always on top",
+          "ru": "Поверх всех окон"
+        }
+      },
+      "yandex-speechkit": {
+        "title": {
+          "en": "Yandex SpeechKit",
+          "ru": "Yandex SpeechKit"
+        }
+      },
+      "tts": {
+        "title": {
+          "en": "Text to speech",
+          "ru": "Синтез речи"
+        }
+      },
+      "stt": {
+        "title": {
+          "en": "Speech to text",
+          "ru": "Распознавание речи"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "dsh-topmost-notify",
+      "title": {
+        "en": "Topmost Notify",
+        "ru": "Topmost Notify"
+      },
+      "description": {
+        "en": "Always-on-top task-complete window with its own sound and a per-chat mute (Windows).",
+        "ru": "Окно поверх всех окон со своим звуком, когда агент завершил задачу; колокольчик для отключения в чате (Windows)."
+      },
+      "icon": "icons/dsh-topmost-notify.svg",
+      "author": "Feskel2",
+      "homepage": "https://github.com/Feskel2/dsh-extras/tree/main/dsh-topmost-notify#readme",
+      "repository": {
+        "url": "https://github.com/Feskel2/dsh-extras",
+        "directory": "dsh-topmost-notify"
+      },
+      "metadata": {
+        "category": "notify",
+        "keywords": [
+          "dsh-plugin",
+          "deepseek-harness",
+          "notifications",
+          "windows",
+          "wpf",
+          "always-on-top"
+        ],
+        "labels": [
+          "windows",
+          "always-on-top"
+        ],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "1.1.0",
+          "publishTimestamp": 1793980855,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Feskel2/dsh-extras",
+            "commit": "45b9e5db2bd3161c563ddefaf13815ff2aaf1421",
+            "path": "dsh-topmost-notify"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        }
+      ]
+    },
+    {
+      "name": "dsh-voice-reply",
+      "title": {
+        "en": "Voice Reply",
+        "ru": "Озвучка ответов"
+      },
+      "description": {
+        "en": "Speaks the assistant's final answer with Yandex SpeechKit and adds a replay button to every answer.",
+        "ru": "Озвучивает финальный ответ ассистента через Yandex SpeechKit и добавляет кнопку повтора к каждому ответу."
+      },
+      "icon": "icons/dsh-voice-reply.svg",
+      "author": "Feskel2",
+      "homepage": "https://github.com/Feskel2/dsh-extras/tree/main/dsh-voice-reply#readme",
+      "repository": {
+        "url": "https://github.com/Feskel2/dsh-extras",
+        "directory": "dsh-voice-reply"
+      },
+      "metadata": {
+        "category": "voice",
+        "keywords": [
+          "dsh-plugin",
+          "deepseek-harness",
+          "tts",
+          "voice",
+          "yandex",
+          "speechkit"
+        ],
+        "labels": [
+          "yandex-speechkit",
+          "tts"
+        ],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "1.1.0",
+          "publishTimestamp": 1793980855,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Feskel2/dsh-extras",
+            "commit": "45b9e5db2bd3161c563ddefaf13815ff2aaf1421",
+            "path": "dsh-voice-reply"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        }
+      ]
+    },
+    {
+      "name": "dsh-speech-to-text-yandex",
+      "title": {
+        "en": "Yandex Speech-to-Text",
+        "ru": "Распознавание речи Yandex"
+      },
+      "description": {
+        "en": "Yandex SpeechKit STT provider for the built-in voice input: cloud recognition without local models.",
+        "ru": "Провайдер распознавания речи Yandex SpeechKit для штатного голосового ввода: облако без локальных моделей."
+      },
+      "icon": "icons/dsh-speech-to-text-yandex.svg",
+      "author": "Feskel2",
+      "homepage": "https://github.com/Feskel2/dsh-extras/tree/main/dsh-speech-to-text-yandex#readme",
+      "repository": {
+        "url": "https://github.com/Feskel2/dsh-extras",
+        "directory": "dsh-speech-to-text-yandex"
+      },
+      "metadata": {
+        "category": "voice",
+        "keywords": [
+          "dsh-plugin",
+          "deepseek-harness",
+          "stt",
+          "asr",
+          "voice",
+          "yandex",
+          "speechkit"
+        ],
+        "labels": [
+          "yandex-speechkit",
+          "stt"
+        ],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793980855,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Feskel2/dsh-extras",
+            "commit": "45b9e5db2bd3161c563ddefaf13815ff2aaf1421",
+            "path": "dsh-speech-to-text-yandex"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        }
+      ]
+    }
+  ]
+}
