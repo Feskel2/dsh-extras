@@ -1,0 +1,68 @@
+{
+  "name": "dsh-voice-reply",
+  "version": "1.0.0",
+  "description": "Voice replies for DSH Web: reads a short spoken summary of assistant answers with Yandex SpeechKit TTS and adds a replay button to every finalized answer",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./pending": "./lib/pending-host.mjs",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib/*.js",
+    "lib/*.mjs",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "plugin-config.example.json",
+    "screenshots.json",
+    "assets/*.png",
+    "README.md",
+    "README.ru.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0",
+    "node": ">=24.9.0"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "tts",
+    "voice",
+    "yandex",
+    "speechkit"
+  ],
+  "license": "MIT",
+  "author": "Feskel2",
+  "homepage": "https://github.com/Feskel2/dsh-extras#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Feskel2/dsh-extras.git",
+    "directory": "dsh-voice-reply"
+  },
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-chat"
+      ]
+    }
+  }
+}

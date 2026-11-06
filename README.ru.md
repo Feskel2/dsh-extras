@@ -7,7 +7,7 @@
 | Плагин | Что делает | Платформа | Установка |
 |---|---|---|---|
 | [`dsh-topmost-notify`](dsh-topmost-notify) | Нативное окно «поверх всех» + звук, когда агент завершил задачу; фокус не крадёт | Windows 10/11 | `dsh plugin --profile web add dsh-topmost-notify` |
-| [`dsh-voice-reply`](dsh-voice-reply) | Озвучивает финальные ответы агента через Yandex SpeechKit TTS, кнопка 🔊 у каждого ответа | DSH Web | `dsh plugin --profile web add dsh-voice-reply` |
+| [`dsh-voice-reply`](dsh-voice-reply) | Озвучивает краткое содержание каждого финального ответа через Yandex SpeechKit TTS, кнопка 🔊 и своя страница настроек | DSH Web | `dsh plugin --profile web add dsh-voice-reply` |
 | [`dsh-speech-to-text-yandex`](dsh-speech-to-text-yandex) | Облачный провайдер распознавания речи (`yandex-speechkit`) для штатного Voice input | DSH Web | `dsh plugin --profile web add dsh-speech-to-text-yandex` |
 
 Каждый плагин — самостоятельный npm-пакет, который ставится как bundle. После

@@ -1,0 +1,24 @@
+# dsh-voice-reply — host row. The row id `voice-reply` is also the identity the
+# browser half uses for its Settings row; the user-facing auto-speak preference
+# itself is stored in plugin-config.json (POST /dsh-voice-reply/preferences),
+# so a Settings write needs no profile edit or restart. An omitted Config is
+# deliberate: a linked bundle cannot resolve @deepseek-ai/schemastery.
+- insert:
+    - id: voice-reply
+      name: dsh-voice-reply
+      config:
+        enabled: true
+        autoSpeak: true
+        voice: marina
+        emotion: ''
+        speed: 1.32
+        format: mp3
+        maxChars: 4000
+        summaryMaxChars: 500
+        debug: true
+    # Second row: host-side "claimed once" store for finished answers. It lives
+    # in its own module so it can be added to a running profile without a
+    # `dsh web` restart (a new module file is imported fresh).
+    - id: voice-reply-pending
+      name: dsh-voice-reply/pending
+

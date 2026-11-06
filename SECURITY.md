@@ -32,7 +32,9 @@ policy is the same for both:
 - `dsh-speech-to-text-yandex` talks only to `stt.api.cloud.yandex.net`.
 
 Audio and text are sent to Yandex only when you explicitly trigger speech
-synthesis or recognition. No telemetry, no analytics, no other endpoints.
+synthesis or recognition. In `dsh-voice-reply` the spoken summary is computed
+locally (extractive, no model call); only that shortened text is synthesized.
+No telemetry, no analytics, no other endpoints.
 
 ## What runs on your machine
 
