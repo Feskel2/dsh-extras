@@ -31,6 +31,17 @@ dsh plugin --profile web add ./dsh-topmost-notify.tgz
   Cloud account with SpeechKit enabled (`dsh-voice-reply`,
   `dsh-speech-to-text-yandex`).
 
+## Yandex SpeechKit setup
+
+Both voice plugins need a Yandex Cloud SpeechKit credential: a folder, a
+service account with `ai.speechkit-tts.user` and/or `ai.speechkit-stt.user`,
+and an API key with the matching scope. The step-by-step guide covers the
+console walkthrough, the three ways to deliver the key, verification, logs,
+troubleshooting and rotation:
+
+- [Yandex SpeechKit setup](docs/yandex-speechkit-setup.md) (English)
+- [Настройка Yandex SpeechKit](docs/yandex-speechkit-setup.ru.md) (Russian)
+
 ## Security
 
 - No API keys, tokens or personal data are stored in this repository. Both

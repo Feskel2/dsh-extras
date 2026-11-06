@@ -70,6 +70,10 @@ dsh plugin --profile web add dsh-speech-to-text-yandex
 Приоритет: config в `cordis.patch.yml` → переменные окружения →
 `plugin-config.json` → встроенные значения по умолчанию.
 
+Полный разбор облачной части Яндекса — биллинг, каталог, сервисный аккаунт, роли,
+области действия API-ключа, проверка, журналы и ошибки — в гайде
+[«Настройка Yandex SpeechKit»](https://github.com/Feskel2/dsh-extras/blob/main/docs/yandex-speechkit-setup.ru.md).
+
 ### Переменные окружения
 
 Переменные читаются один раз при старте `dsh web` — после изменения перезапустите

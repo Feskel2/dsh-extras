@@ -67,6 +67,10 @@ no restart needed.
 Precedence: `cordis.patch.yml` config → environment variables → `plugin-config.json` →
 built-in defaults.
 
+For the full Yandex Cloud walkthrough — billing, folder, service account, roles, API-key
+scopes, verification, logs and troubleshooting — see
+[Yandex SpeechKit setup](https://github.com/Feskel2/dsh-extras/blob/main/docs/yandex-speechkit-setup.md).
+
 ### Environment variables
 
 Environment variables are read once, when `dsh web` starts, so restart it after changing

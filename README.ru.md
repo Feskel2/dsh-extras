@@ -32,6 +32,17 @@ dsh plugin --profile web add ./dsh-topmost-notify.tgz
   Yandex Cloud с включённым SpeechKit (`dsh-voice-reply`,
   `dsh-speech-to-text-yandex`).
 
+## Настройка Yandex SpeechKit
+
+Обоим голосовым плагинам нужен доступ к Yandex Cloud SpeechKit: каталог,
+сервисный аккаунт с ролью `ai.speechkit-tts.user` и/или
+`ai.speechkit-stt.user` и API-ключ с соответствующей областью действия.
+Пошаговый гайд: консоль, три способа доставить ключ, проверка, журналы,
+разбор ошибок и ротация:
+
+- [Настройка Yandex SpeechKit](docs/yandex-speechkit-setup.ru.md) (русский)
+- [Yandex SpeechKit setup](docs/yandex-speechkit-setup.md) (английский)
+
 ## Безопасность
 
 - В репозитории нет ключей, токенов и личных данных. Оба голосовых плагина
