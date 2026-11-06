@@ -11,6 +11,8 @@ Reads the assistant's finished answers aloud in DSH Web with Yandex SpeechKit TT
 | **Install** | GitHub release tarball (see [Install guide](../docs/install.md)) |
 | **License** | MIT |
 
+![Demo: picking a voice, intonation and speed, then auditioning the draft](https://raw.githubusercontent.com/Feskel2/dsh-extras/main/dsh-voice-reply/assets/demo-voice.gif)
+
 ![An answer with the speaker action and the reading chip](assets/answer-playing.png)
 
 ## The problem

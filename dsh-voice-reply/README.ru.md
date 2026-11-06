@@ -12,6 +12,8 @@
 | **Установка** | Tarball GitHub-релиза (см. [инструкцию](../docs/install.ru.md)) |
 | **Лицензия** | MIT |
 
+![Демо: выбор голоса, интонации и скорости с прослушиванием](https://raw.githubusercontent.com/Feskel2/dsh-extras/main/dsh-voice-reply/assets/demo-voice.gif)
+
 ![Ответ с кнопкой озвучки и чипом «читаю краткое содержание»](assets/answer-playing.png)
 
 ## Зачем это

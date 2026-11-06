@@ -12,6 +12,8 @@ A native always-on-top notification with a chime when a DSH Web task finishes â€
 | **Install** | GitHub release tarball (see [Install guide](../docs/install.md)) |
 | **License** | MIT |
 
+![Demo: the notification card appears over whatever is on screen and closes itself](https://raw.githubusercontent.com/Feskel2/dsh-extras/main/dsh-topmost-notify/assets/demo-notify.gif)
+
 ![Question notification shown over a fullscreen video](assets/question.png)
 
 ## The problem

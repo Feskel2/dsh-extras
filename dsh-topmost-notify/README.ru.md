@@ -12,6 +12,8 @@
 | **Установка** | Tarball GitHub-релиза (см. [инструкцию](../docs/install.ru.md)) |
 | **Лицензия** | MIT |
 
+![Демо: карточка появляется поверх любого окна и закрывается сама](https://raw.githubusercontent.com/Feskel2/dsh-extras/main/dsh-topmost-notify/assets/demo-notify.gif)
+
 ![Карточка «нужен ответ» поверх полноэкранного видео](assets/question.png)
 
 ## Зачем это
