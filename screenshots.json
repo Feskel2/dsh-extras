@@ -1,0 +1,11 @@
+{
+  "screenshots": [
+    "dsh-topmost-notify/assets/notification.png",
+    "dsh-topmost-notify/assets/question.png",
+    "dsh-topmost-notify/assets/settings.png",
+    "dsh-voice-reply/assets/answer-playing.png",
+    "dsh-voice-reply/assets/settings.png",
+    "dsh-speech-to-text-yandex/assets/voice-input-provider.png",
+    "dsh-speech-to-text-yandex/assets/voice-input-settings.png"
+  ]
+}

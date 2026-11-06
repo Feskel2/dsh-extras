@@ -46,6 +46,8 @@ export const Config = z.object({
   showSessionTitle: z.boolean().default(true).volatile(),
   /** Include a one-line excerpt of the final answer. */
   showAnswerExcerpt: z.boolean().default(true).volatile(),
+  /** Show the amber "answer needed" card when the agent asks a question. */
+  notifyQuestions: z.boolean().default(true).volatile(),
   /** Sessions whose notifications are muted by the per-chat header switch. */
   mutedSessions: z.array(z.string()).default([]).volatile(),
   /** Diagnostics only: also notify for delegated subagent turns (default off). */

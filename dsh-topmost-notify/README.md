@@ -2,6 +2,8 @@
 
 A native always-on-top notification with a chime when a DSH Web task finishes — or when the agent is waiting for your answer. Windows only.
 
+**Install:** `dsh plugin --profile web add dsh-topmost-notify`
+
 | | |
 |---|---|
 | **Platform** | Windows 10/11 · DSH Web profile |
@@ -49,6 +51,7 @@ Then restart `dsh web` (profile UI plugins are loaded at boot) and open the URL 
 | `sound` | `true` | Play the bundled WAV chime |
 | `showSessionTitle` | `true` | Put the chat title on the card |
 | `showAnswerExcerpt` | `true` | Put one flattened line of the final answer on the card |
+| `notifyQuestions` | `true` | Show the amber "answer needed" card when the agent asks a question |
 | `mutedSessions` | `[]` | Chats muted by the header bell (written by the UI) |
 | `notifySubagentTest` | `false` | Diagnostics: also notify for subagent turns |
 

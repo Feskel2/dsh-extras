@@ -15,8 +15,9 @@ policy is the same for both:
 1. **Environment variables are the primary source** (they win over files):
    - `dsh-voice-reply` — `YANDEX_TTS_API_KEY`, `YANDEX_TTS_FOLDER_ID`,
      `YANDEX_TTS_IAM_TOKEN`;
-   - `dsh-speech-to-text-yandex` — `YANDEX_SPEECHKIT_API_KEY`,
-     `YANDEX_SPEECHKIT_FOLDER_ID`, `YANDEX_SPEECHKIT_IAM_TOKEN`.
+   - `dsh-speech-to-text-yandex` — `YANDEX_STT_API_KEY`,
+     `YANDEX_STT_FOLDER_ID`, `YANDEX_STT_IAM_TOKEN` (the legacy names
+     `YANDEX_SPEECHKIT_*` and `YC_*` are still recognized).
 2. **A local `plugin-config.json`** next to the installed plugin is supported
    for convenience, but it is git-ignored and never shipped: the packages
    contain only `plugin-config.example.json` with empty values.

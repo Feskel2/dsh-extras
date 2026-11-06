@@ -2,6 +2,8 @@
 
 Нативное окно поверх всех окон со звуком: когда задача в DSH Web завершена — или когда агент ждёт ответа. Только Windows.
 
+**Установка одной командой:** `dsh plugin --profile web add dsh-topmost-notify`
+
 | | |
 |---|---|
 | **Платформа** | Windows 10/11 · профиль DSH Web |
@@ -49,6 +51,7 @@ dsh plugin --profile web add dsh-topmost-notify
 | `sound` | `true` | Играть встроенный WAV-звук |
 | `showSessionTitle` | `true` | Показывать название чата на карточке |
 | `showAnswerExcerpt` | `true` | Показывать одну строку финального ответа |
+| `notifyQuestions` | `true` | Показывать янтарную карточку «нужен ответ», когда агент задаёт вопрос |
 | `mutedSessions` | `[]` | Чаты, отключённые колокольчиком (пишет UI) |
 | `notifySubagentTest` | `false` | Диагностика: уведомлять и о ходах сабагентов |
 
